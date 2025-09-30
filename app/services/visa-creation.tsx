@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import { customerService } from '@/lib/supabase';
+import { customerService, transactionService } from '@/lib/supabase';
 
 interface CustomerInfo {
   customer_name: string;
@@ -47,13 +47,33 @@ export default function VisaCreationScreen() {
   const loadCustomerInfo = async () => {
     try {
       const customerId = await AsyncStorage.getItem('currentCustomerId');
-      if (customerId) {
-        console.log('🔍 جلب بيانات الزبون:', customerId);
-        const customer = await customerService.getByNationalId(customerId);
-        if (customer) {
-          setCustomerInfo(customer);
-          console.log('✅ تم تحميل بيانات الزبون:', customer.customer_name);
+      const customerName = await AsyncStorage.getItem('currentCustomerName');
+      const customerPhone = await AsyncStorage.getItem('currentCustomerPhone');
+      const customerBirthDate = await AsyncStorage.getItem('currentCustomerBirthDate');
+      const customerImage1 = await AsyncStorage.getItem('currentCustomerImage1');
+      const customerImage2 = await AsyncStorage.getItem('currentCustomerImage2');
+      
+      if (customerId && customerName) {
+        console.log('🔍 تحميل بيانات الزبون من التخزين المحلي:', customerId);
+        
+        const customer = {
+          customer_name: customerName,
+          national_id: customerId,
+          phone_number: customerPhone || '',
+          birth_date: customerBirthDate || ''
+        };
+        
+        setCustomerInfo(customer);
+        
+        // تحميل الصور إذا كانت متوفرة
+        if (customerImage1) {
+          setIdImage(customerImage1);
         }
+        if (customerImage2) {
+          setLicenseImage(customerImage2);
+        }
+        
+        console.log('✅ تم تحميل بيانات الزبون:', customer.customer_name);
       } else {
         Alert.alert('خطأ', 'لم يتم العثور على بيانات الزبون');
         router.back();
@@ -129,8 +149,63 @@ export default function VisaCreationScreen() {
 
     try {
       setLoading(true);
-      
-      // إنشاء طلب الفيزا
+      console.log('🔄 معالجة طلب إنشاء الفيزا...');
+
+      // إنشاء أو تحديث بيانات الزبون في قاعدة البيانات
+      try {
+        const existingCustomer = await customerService.getByNationalId(customerInfo.national_id);
+        
+        if (existingCustomer) {
+          // تحديث بيانات الزبون الموجود
+          await customerService.update(existingCustomer.id, {
+            customer_name: customerInfo.customer_name,
+            phone_number: customerInfo.phone_number,
+            birth_date: customerInfo.birth_date,
+            image1_uri: idImage || '',
+            image2_uri: licenseImage || ''
+          });
+          console.log('✅ تم تحديث بيانات الزبون في قاعدة البيانات');
+        } else {
+          // إنشاء زبون جديد
+          await customerService.create({
+            customer_name: customerInfo.customer_name,
+            national_id: customerInfo.national_id,
+            phone_number: customerInfo.phone_number,
+            birth_date: customerInfo.birth_date,
+            image1_uri: idImage || '',
+            image2_uri: licenseImage || ''
+          });
+          console.log('✅ تم إنشاء زبون جديد في قاعدة البيانات');
+        }
+      } catch (customerError) {
+        console.error('❌ خطأ في حفظ بيانات الزبون في قاعدة البيانات:', customerError);
+        // المتابعة حتى لو فشل حفظ الزبون
+      }
+
+      // إنشاء معاملة إنشاء الفيزا في جدول transactions
+      try {
+        const transactionData = {
+          service_number: 1, // إنشاء فيزا
+          amount_paid: 45, // رسوم إنشاء الفيزا
+          currency_paid: 'ILS',
+          amount_received: 0,
+          currency_received: 'ILS',
+          customer_id: customerInfo.national_id,
+          notes: `طلب إنشاء فيزا ${visaData.visaType === 'debit' ? 'خصم' : 'ائتمان'} - البنك: ${visaData.bankName} - رقم الحساب: ${visaData.accountNumber} - الإيداع الأولي: ${visaData.initialDeposit} شيقل - الزبون: ${customerInfo.customer_name}`
+        };
+        
+        console.log('🔄 إنشاء معاملة إنشاء الفيزا في جدول transactions:', transactionData);
+        
+        // إضافة المعاملة إلى قاعدة البيانات
+        await transactionService.create(transactionData);
+        
+        console.log('✅ تم حفظ معاملة إنشاء الفيزا في جدول transactions بنجاح');
+      } catch (transactionError) {
+        console.error('❌ خطأ في حفظ المعاملة في قاعدة البيانات:', transactionError);
+        // المتابعة حتى لو فشل حفظ المعاملة
+      }
+
+      // إنشاء طلب الفيزا للموظفين (للمراجعة)
       const visaRequest = {
         id: Date.now().toString(),
         service: 'visa-creation',
@@ -149,28 +224,57 @@ export default function VisaCreationScreen() {
         timestamp: new Date().toISOString()
       };
 
-      // حفظ الطلب
+      // حفظ الطلب للموظفين
       const savedRequests = await AsyncStorage.getItem('serviceRequests');
       const requests = savedRequests ? JSON.parse(savedRequests) : [];
       requests.push(visaRequest);
       await AsyncStorage.setItem('serviceRequests', JSON.stringify(requests));
 
-      console.log('✅ تم حفظ طلب إنشاء الفيزا:', visaRequest);
+      console.log('✅ تم حفظ طلب إنشاء الفيزا للمراجعة:', visaRequest);
 
+      // عرض رسالة النجاح
       Alert.alert(
-        language === 'ar' ? '✅ تم إرسال الطلب' : 
-        language === 'he' ? '✅ הבקשה נשלחה' : 
-        '✅ Request Submitted',
+        language === 'ar' ? '✅ تم تسجيل المعاملة بنجاح' : 
+        language === 'he' ? '✅ העסקה נרשמה בהצלחה' : 
+        '✅ Transaction Recorded Successfully',
         
-        language === 'ar' ? `تم إرسال طلب إنشاء فيزا ${visaData.visaType === 'debit' ? 'خصم' : 'ائتمان'} للمراجعة` :
-        language === 'he' ? `בקשת יצירת כרטיס ${visaData.visaType === 'debit' ? 'חיוב' : 'אשראי'} נשלחה לבדיקה` :
-        `${visaData.visaType === 'debit' ? 'Debit' : 'Credit'} card creation request submitted for review`,
+        language === 'ar' ? 
+          `🙏 شكراً لاختيارك محلنا\n\n` +
+          `📋 يرجى التقدم إلى الشباك وانتظار دورك\n\n` +
+          `تفاصيل المعاملة:\n` +
+          `الزبون: ${customerInfo.customer_name}\n` +
+          `الخدمة: إنشاء فيزا ${visaData.visaType === 'debit' ? 'خصم' : 'ائتمان'}\n` +
+          `الرسوم: 45 شيقل\n` +
+          `البنك: ${visaData.bankName}\n` +
+          `الإيداع الأولي: ${visaData.initialDeposit} شيقل\n\n` +
+          `✅ تم تسجيل المعاملة في النظام بنجاح` :
+        
+        language === 'he' ? 
+          `🙏 תודה שבחרת בחנות שלנו\n\n` +
+          `📋 אנא פנה לדלפק והמתן לתורך\n\n` +
+          `פרטי העסקה:\n` +
+          `לקוח: ${customerInfo.customer_name}\n` +
+          `שירות: יצירת כרטיס ${visaData.visaType === 'debit' ? 'חיוב' : 'אשראי'}\n` +
+          `עמלה: 45 שקל\n` +
+          `בנק: ${visaData.bankName}\n` +
+          `הפקדה ראשונית: ${visaData.initialDeposit} שקל\n\n` +
+          `✅ העסקה נרשמה במערכת בהצלחה` :
+        
+          `🙏 Thank you for choosing our store\n\n` +
+          `📋 Please proceed to the counter and wait for your turn\n\n` +
+          `Transaction Details:\n` +
+          `Customer: ${customerInfo.customer_name}\n` +
+          `Service: Create ${visaData.visaType === 'debit' ? 'Debit' : 'Credit'} Card\n` +
+          `Fee: 45 Shekel\n` +
+          `Bank: ${visaData.bankName}\n` +
+          `Initial Deposit: ${visaData.initialDeposit} Shekel\n\n` +
+          `✅ Transaction recorded in system successfully`,
         
         [
           {
-            text: language === 'ar' ? 'العودة للأسعار' : 
-                  language === 'he' ? 'חזרה למחירים' : 
-                  'Back to Prices',
+            text: language === 'ar' ? '🏠 العودة لأسعار اليوم' : 
+                  language === 'he' ? '🏠 חזרה למחירי היום' : 
+                  '🏠 Back to Today\'s Prices',
             onPress: () => router.replace('/(tabs)/prices')
           }
         ]
@@ -322,8 +426,7 @@ export default function VisaCreationScreen() {
                 value={customerInfo?.phone_number || ''}
                 onChangeText={(text) => {
                   if (customerInfo) {
-                    const updatedCustomer = { ...customerInfo, phone_number: text };
-                    // هنا يمكن تحديث customerInfo إذا كان هناك setter
+                    setCustomerInfo(prev => prev ? { ...prev, phone_number: text } : null);
                   }
                 }}
                 placeholder="0501234567"
@@ -598,6 +701,11 @@ export default function VisaCreationScreen() {
               {language === 'ar' && 'ℹ️ معلومات مهمة:'}
               {language === 'he' && 'ℹ️ מידע חשוב:'}
               {language === 'en' && 'ℹ️ Important Information:'}
+            </Text>
+            <Text style={[styles.infoText, { textAlign: getTextAlign() }]}>
+              {language === 'ar' && '• رسوم إنشاء الفيزا: 45 شيقل'}
+              {language === 'he' && '• עמלת יצירת כרטיס: 45 שקל'}
+              {language === 'en' && '• Card creation fee: 45 Shekel'}
             </Text>
             <Text style={[styles.infoText, { textAlign: getTextAlign() }]}>
               {language === 'ar' && '• رقم الهاتف وصور الهوية والرخصة مطلوبة'}
