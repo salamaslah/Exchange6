@@ -202,35 +202,25 @@ export default function VisaCreationScreen() {
         console.log('✅ تم حفظ معاملة إنشاء الفيزا في جدول transactions بنجاح');
       } catch (transactionError) {
         console.error('❌ خطأ في حفظ المعاملة في قاعدة البيانات:', transactionError);
-        // المتابعة حتى لو فشل حفظ المعاملة
+        Alert.alert(
+          language === 'ar' ? 'تحذير' : language === 'he' ? 'אזהרה' : 'Warning',
+          language === 'ar' ? 'تم حفظ بيانات الزبون ولكن حدث خطأ في تسجيل المعاملة' : 
+          language === 'he' ? 'נתוני הלקוח נשמרו אך אירעה שגיאה ברישום העסקה' : 
+          'Customer data saved but error occurred recording transaction'
+        );
       }
 
-      // إنشاء طلب الفيزا للموظفين (للمراجعة)
-      const visaRequest = {
-        id: Date.now().toString(),
-        service: 'visa-creation',
-        customerId: customerInfo?.national_id,
-        customerName: customerInfo?.customer_name,
-        visaType: visaData.visaType,
-        bankName: visaData.bankName,
-        accountNumber: visaData.accountNumber,
-        initialDeposit: parseFloat(visaData.initialDeposit),
-        monthlyLimit: visaData.monthlyLimit ? parseFloat(visaData.monthlyLimit) : null,
-        notes: visaData.notes,
-        phoneNumber: customerInfo?.phone_number,
-        idImageUri: idImage,
-        licenseImageUri: licenseImage,
-        status: 'pending',
-        timestamp: new Date().toISOString()
-      };
-
-      // حفظ الطلب للموظفين
-      const savedRequests = await AsyncStorage.getItem('serviceRequests');
-      const requests = savedRequests ? JSON.parse(savedRequests) : [];
-      requests.push(visaRequest);
-      await AsyncStorage.setItem('serviceRequests', JSON.stringify(requests));
-
-      console.log('✅ تم حفظ طلب إنشاء الفيزا للمراجعة:', visaRequest);
+      // تنظيف البيانات المؤقتة
+      await AsyncStorage.removeItem('currentCustomerId');
+      await AsyncStorage.removeItem('currentCustomerName');
+      await AsyncStorage.removeItem('currentCustomerPhone');
+      await AsyncStorage.removeItem('currentCustomerBirthDate');
+      await AsyncStorage.removeItem('currentCustomerImage1');
+      await AsyncStorage.removeItem('currentCustomerImage2');
+      await AsyncStorage.removeItem('selectedServiceNumber');
+      await AsyncStorage.removeItem('selectedServiceName');
+      await AsyncStorage.removeItem('selectedServiceNameHe');
+      await AsyncStorage.removeItem('selectedServiceNameEn');
 
       // عرض رسالة النجاح
       Alert.alert(
