@@ -10,8 +10,10 @@ interface CustomerInfo {
   national_id: string;
   phone_number: string;
   birth_date: string;
-  image1_uri?: string;
-  image2_uri?: string;
+  image1_data?: string;
+  image1_type?: string;
+  image2_data?: string;
+  image2_type?: string;
 }
 
 export default function CustomerInfoScreen() {
@@ -20,8 +22,10 @@ export default function CustomerInfoScreen() {
     national_id: '',
     phone_number: '',
     birth_date: '',
-    image1_uri: '',
-    image2_uri: ''
+    image1_data: '',
+    image1_type: '',
+    image2_data: '',
+    image2_type: ''
   });
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -70,8 +74,10 @@ export default function CustomerInfoScreen() {
         national_id: '',
         phone_number: '',
         birth_date: '',
-        image1_uri: '',
-        image2_uri: ''
+        image1_data: '',
+        image1_type: '',
+        image2_data: '',
+        image2_type: ''
       });
       setImage1(null);
       setImage2(null);
@@ -157,16 +163,18 @@ export default function CustomerInfoScreen() {
           national_id: customer.national_id,
           phone_number: customer.phone_number || '',
           birth_date: customer.birth_date,
-          image1_uri: customer.image1_uri || customerInfo.image1_uri || '',
-          image2_uri: customer.image2_uri || customerInfo.image2_uri || ''
+          image1_data: customer.image1_data || customerInfo.image1_data || '',
+          image1_type: customer.image1_type || customerInfo.image1_type || '',
+          image2_data: customer.image2_data || customerInfo.image2_data || '',
+          image2_type: customer.image2_type || customerInfo.image2_type || ''
         });
 
         // تحميل الصور إذا كانت متوفرة
-        if (customer.image1_uri && customer.image1_uri.trim()) {
-          setImage1(customer.image1_uri);
+        if (customer.image1_data && customer.image1_data.trim()) {
+          setImage1(customer.image1_data);
         }
-        if (customer.image2_uri && customer.image2_uri.trim()) {
-          setImage2(customer.image2_uri);
+        if (customer.image2_data && customer.image2_data.trim()) {
+          setImage2(customer.image2_data);
         }
 
         setCustomerFound(true);
@@ -191,8 +199,10 @@ export default function CustomerInfoScreen() {
           national_id: prev.national_id,
           phone_number: '',
           birth_date: '',
-          image1_uri: '',
-          image2_uri: ''
+          image1_data: '',
+          image1_type: '',
+          image2_data: '',
+          image2_type: ''
         }));
         setImage1(null);
         setImage2(null);
@@ -351,11 +361,11 @@ export default function CustomerInfoScreen() {
         
         if (imageNumber === 1) {
           setImage1(imageUri);
-          setCustomerInfo(prev => ({ ...prev, image1_uri: imageUri }));
+          setCustomerInfo(prev => ({ ...prev, image1_data: imageUri, image1_type: 'image/jpeg' }));
           console.log('✅ تم اختيار الصورة الأولى:', imageUri);
         } else {
           setImage2(imageUri);
-          setCustomerInfo(prev => ({ ...prev, image2_uri: imageUri }));
+          setCustomerInfo(prev => ({ ...prev, image2_data: imageUri, image2_type: 'image/jpeg' }));
           console.log('✅ تم اختيار الصورة الثانية:', imageUri);
         }
       }
@@ -371,11 +381,11 @@ export default function CustomerInfoScreen() {
   const removeImage = (imageNumber: 1 | 2) => {
     if (imageNumber === 1) {
       setImage1(null);
-      setCustomerInfo(prev => ({ ...prev, image1_uri: '' }));
+      setCustomerInfo(prev => ({ ...prev, image1_data: '', image1_type: '' }));
       console.log('🗑️ تم حذف الصورة الأولى');
     } else {
       setImage2(null);
-      setCustomerInfo(prev => ({ ...prev, image2_uri: '' }));
+      setCustomerInfo(prev => ({ ...prev, image2_data: '', image2_type: '' }));
       console.log('🗑️ تم حذف الصورة الثانية');
     }
   };
@@ -619,8 +629,10 @@ export default function CustomerInfoScreen() {
               customer_name: customerInfo.customer_name,
               phone_number: customerInfo.phone_number,
               birth_date: customerInfo.birth_date,
-              image1_uri: image1 || '',
-              image2_uri: image2 || ''
+              image1_data: image1 || '',
+              image1_type: image1 ? 'image/jpeg' : '',
+              image2_data: image2 || '',
+              image2_type: image2 ? 'image/jpeg' : ''
             });
             console.log('✅ تم تحديث بيانات الزبون في قاعدة البيانات');
           } else {
@@ -630,8 +642,10 @@ export default function CustomerInfoScreen() {
               national_id: customerInfo.national_id,
               phone_number: customerInfo.phone_number,
               birth_date: customerInfo.birth_date,
-              image1_uri: image1 || '',
-              image2_uri: image2 || ''
+              image1_data: image1 || '',
+              image1_type: image1 ? 'image/jpeg' : '',
+              image2_data: image2 || '',
+              image2_type: image2 ? 'image/jpeg' : ''
             });
             console.log('✅ تم إنشاء زبون جديد في قاعدة البيانات');
           }
@@ -680,8 +694,10 @@ export default function CustomerInfoScreen() {
               customer_name: customerInfo.customer_name,
               phone_number: customerInfo.phone_number,
               birth_date: customerInfo.birth_date,
-              image1_uri: image1 || '',
-              image2_uri: image2 || ''
+              image1_data: image1 || '',
+              image1_type: image1 ? 'image/jpeg' : '',
+              image2_data: image2 || '',
+              image2_type: image2 ? 'image/jpeg' : ''
             });
             console.log('✅ تم تحديث بيانات الزبون في قاعدة البيانات');
           } else {
@@ -691,8 +707,10 @@ export default function CustomerInfoScreen() {
               national_id: customerInfo.national_id,
               phone_number: customerInfo.phone_number,
               birth_date: customerInfo.birth_date,
-              image1_uri: image1 || '',
-              image2_uri: image2 || ''
+              image1_data: image1 || '',
+              image1_type: image1 ? 'image/jpeg' : '',
+              image2_data: image2 || '',
+              image2_type: image2 ? 'image/jpeg' : ''
             });
             console.log('✅ تم إنشاء زبون جديد في قاعدة البيانات');
           }
