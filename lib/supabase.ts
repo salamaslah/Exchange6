@@ -684,8 +684,10 @@ export const customerService = {
             national_id: customer.national_id,
             phone_number: customer.phone_number,
             birth_date: customer.birth_date,
-            image1_uri: customer.image1_uri,
-            image2_uri: customer.image2_uri
+            image1_data: customer.image1_data,
+            image1_type: customer.image1_type,
+            image2_data: customer.image2_data,
+            image2_type: customer.image2_type
           })
           .select()
           .single();
@@ -738,8 +740,10 @@ export const customerService = {
           customer_name: customer.customer_name,
           phone_number: customer.phone_number,
           birth_date: customer.birth_date,
-          image1_uri: customer.image1_uri,
-          image2_uri: customer.image2_uri
+          image1_data: customer.image1_data,
+          image1_type: customer.image1_type,
+          image2_data: customer.image2_data,
+          image2_type: customer.image2_type
         });
         
         // إذا كان id يبدو كرقم هوية (9 أرقام)، ابحث بـ national_id
