@@ -706,7 +706,7 @@ export default function CustomerInfoScreen() {
         // عرض رسالة الشكر والتوجيه
         showCalculatorTransactionMessage();
       } else if (selectedService && selectedService.service_number === 1) {
-        // معالجة خدمة إنشاء الفيزا
+        // معالجة خدمة إنشاء الفيزا - إتمام العملية مباشرة
         try {
           const existingCustomer = await customerService.getByNationalId(customerInfo.national_id);
           
@@ -718,6 +718,8 @@ export default function CustomerInfoScreen() {
               birth_date: customerInfo.birth_date,
               image1_data: image1 || '',
               image1_type: image1 ? 'image/jpeg' : '',
+              image2_data: image2 || '',
+              image2_type: image2 ? 'image/jpeg' : ''
               image2_data: image2 || '',
               image2_type: image2 ? 'image/jpeg' : ''
             });
@@ -733,12 +735,19 @@ export default function CustomerInfoScreen() {
               image1_type: image1 ? 'image/jpeg' : '',
               image2_data: image2 || '',
               image2_type: image2 ? 'image/jpeg' : ''
+              image2_data: image2 || '',
+              image2_type: image2 ? 'image/jpeg' : ''
             });
             console.log('✅ تم إنشاء زبون جديد في قاعدة البيانات');
           }
         } catch (customerError) {
           console.error('❌ خطأ في حفظ بيانات الزبون في قاعدة البيانات:', customerError);
-          // المتابعة حتى لو فشل حفظ الزبون
+          Alert.alert(
+            language === 'ar' ? 'تحذير' : language === 'he' ? 'אזהרה' : 'Warning',
+            language === 'ar' ? 'حدث خطأ في حفظ بيانات الزبون، لكن سيتم المتابعة' : 
+            language === 'he' ? 'אירעה שגיאה בשמירת נתוני הלקוח, אך נמשיך' : 
+            'Error saving customer data, but will continue'
+          );
         }
 
         // إنشاء معاملة إنشاء الفيزا في جدول transactions
@@ -761,10 +770,22 @@ export default function CustomerInfoScreen() {
           console.log('✅ تم حفظ معاملة إنشاء الفيزا في جدول transactions بنجاح');
         } catch (transactionError) {
           console.error('❌ خطأ في حفظ المعاملة في قاعدة البيانات:', transactionError);
-          // المتابعة حتى لو فشل حفظ المعاملة
+          Alert.alert(
+            language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
+            language === 'ar' ? 'حدث خطأ في تسجيل المعاملة' : 
+            language === 'he' ? 'אירעה שגיאה ברישום העסקה' : 
+            'Error occurred recording transaction'
+          );
+          return;
         }
 
         // تنظيف البيانات المؤقتة
+        await AsyncStorage.removeItem('currentCustomerId');
+        await AsyncStorage.removeItem('currentCustomerName');
+        await AsyncStorage.removeItem('currentCustomerPhone');
+        await AsyncStorage.removeItem('currentCustomerBirthDate');
+        await AsyncStorage.removeItem('currentCustomerImage1');
+        await AsyncStorage.removeItem('currentCustomerImage2');
         await AsyncStorage.removeItem('selectedServiceNumber');
         await AsyncStorage.removeItem('selectedServiceName');
         await AsyncStorage.removeItem('selectedServiceNameHe');
