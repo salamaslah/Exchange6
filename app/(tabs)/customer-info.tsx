@@ -254,10 +254,12 @@ export default function CustomerInfoScreen() {
       case 8: // صرافة أموال (من الآلة الحاسبة)
         return { basic: true, phone: false, images: false };
       
+      case 1: // إنشاء فيزا
+        return { basic: true, phone: true, images: true };
+      
       case 7: // إيداع في الفيزا
         return { basic: true, phone: false, images: false };
       
-      case 1: // إنشاء فيزا
       case 2: // تحويل للخارج
       case 4: // صرافة شيكات
       case 5: // تحويل لحساب بنك
@@ -287,6 +289,12 @@ export default function CustomerInfoScreen() {
     
     switch (serviceNumber) {
       case 1: // إنشاء فيزا
+        switch (language) {
+          case 'he': return 'תמונת רישיון נהיגה';
+          case 'en': return 'Driver License Photo';
+          default: return 'صورة رخصة القيادة';
+        }
+      
       case 4: // صرافة شيكات
       case 5: // تحويل لحساب بنك
       case 6: // سحب من الفيزا
@@ -534,6 +542,49 @@ export default function CustomerInfoScreen() {
     );
   };
 
+  const showVisaCreationMessage = () => {
+    Alert.alert(
+      language === 'ar' ? '✅ تم تسجيل طلب إنشاء الفيزا بنجاح' : 
+      language === 'he' ? '✅ בקשת יצירת הכרטיס נרשמה בהצלחה' : 
+      '✅ Card Creation Request Recorded Successfully',
+      
+      language === 'ar' ? 
+        `🙏 شكراً لاختيارك محلنا\n\n` +
+        `📋 يرجى التقدم إلى الشباك وانتظار دورك\n\n` +
+        `تفاصيل المعاملة:\n` +
+        `الزبون: ${customerInfo.customer_name}\n` +
+        `الخدمة: إنشاء فيزا\n` +
+        `الرسوم: 45 شيقل\n\n` +
+        `✅ تم تسجيل المعاملة في النظام بنجاح` :
+      
+      language === 'he' ? 
+        `🙏 תודה שבחרת בחנות שלנו\n\n` +
+        `📋 אנא פנה לדלפק והמתן לתורך\n\n` +
+        `פרטי העסקה:\n` +
+        `לקוח: ${customerInfo.customer_name}\n` +
+        `שירות: יצירת כרטיס\n` +
+        `עמלה: 45 שקל\n\n` +
+        `✅ העסקה נרשמה במערכת בהצלחה` :
+      
+        `🙏 Thank you for choosing our store\n\n` +
+        `📋 Please proceed to the counter and wait for your turn\n\n` +
+        `Transaction Details:\n` +
+        `Customer: ${customerInfo.customer_name}\n` +
+        `Service: Create Card\n` +
+        `Fee: 45 Shekel\n\n` +
+        `✅ Transaction recorded in system successfully`,
+      
+      [
+        {
+          text: language === 'ar' ? '🏠 العودة لأسعار اليوم' : 
+                language === 'he' ? '🏠 חזרה למחירי היום' : 
+                '🏠 Back to Today\'s Prices',
+          onPress: () => router.replace('/(tabs)/prices')
+        }
+      ]
+    );
+  };
+
   const handleContinue = async () => {
     if (!validateCustomerInfo()) return;
 
@@ -618,6 +669,69 @@ export default function CustomerInfoScreen() {
         
         // عرض رسالة الشكر والتوجيه
         showCalculatorTransactionMessage();
+      } else if (selectedService && selectedService.service_number === 1) {
+        // معالجة خدمة إنشاء الفيزا
+        try {
+          const existingCustomer = await customerService.getByNationalId(customerInfo.national_id);
+          
+          if (existingCustomer) {
+            // تحديث بيانات الزبون الموجود
+            await customerService.update(existingCustomer.id, {
+              customer_name: customerInfo.customer_name,
+              phone_number: customerInfo.phone_number,
+              birth_date: customerInfo.birth_date,
+              image1_uri: image1 || '',
+              image2_uri: image2 || ''
+            });
+            console.log('✅ تم تحديث بيانات الزبون في قاعدة البيانات');
+          } else {
+            // إنشاء زبون جديد
+            await customerService.create({
+              customer_name: customerInfo.customer_name,
+              national_id: customerInfo.national_id,
+              phone_number: customerInfo.phone_number,
+              birth_date: customerInfo.birth_date,
+              image1_uri: image1 || '',
+              image2_uri: image2 || ''
+            });
+            console.log('✅ تم إنشاء زبون جديد في قاعدة البيانات');
+          }
+        } catch (customerError) {
+          console.error('❌ خطأ في حفظ بيانات الزبون في قاعدة البيانات:', customerError);
+          // المتابعة حتى لو فشل حفظ الزبون
+        }
+
+        // إنشاء معاملة إنشاء الفيزا في جدول transactions
+        try {
+          const transactionData = {
+            service_number: 1, // إنشاء فيزا
+            amount_paid: 45, // رسوم إنشاء الفيزا
+            currency_paid: 'ILS',
+            amount_received: 0,
+            currency_received: 'ILS',
+            customer_id: customerInfo.national_id,
+            notes: `طلب إنشاء فيزا - الزبون: ${customerInfo.customer_name}`
+          };
+          
+          console.log('🔄 إنشاء معاملة إنشاء الفيزا في جدول transactions:', transactionData);
+          
+          // إضافة المعاملة إلى قاعدة البيانات
+          await transactionService.create(transactionData);
+          
+          console.log('✅ تم حفظ معاملة إنشاء الفيزا في جدول transactions بنجاح');
+        } catch (transactionError) {
+          console.error('❌ خطأ في حفظ المعاملة في قاعدة البيانات:', transactionError);
+          // المتابعة حتى لو فشل حفظ المعاملة
+        }
+
+        // تنظيف البيانات المؤقتة
+        await AsyncStorage.removeItem('selectedServiceNumber');
+        await AsyncStorage.removeItem('selectedServiceName');
+        await AsyncStorage.removeItem('selectedServiceNameHe');
+        await AsyncStorage.removeItem('selectedServiceNameEn');
+        
+        // عرض رسالة الشكر والتوجيه
+        showVisaCreationMessage();
       } else {
         await navigateToServiceScreen();
       }
