@@ -10,10 +10,6 @@ interface CustomerInfo {
   national_id: string;
   phone_number: string;
   birth_date: string;
-  image1_data?: string;
-  image1_type?: string;
-  image2_data?: string;
-  image2_type?: string;
 }
 
 export default function CustomerInfoScreen() {
@@ -21,30 +17,23 @@ export default function CustomerInfoScreen() {
     customer_name: '',
     national_id: '',
     phone_number: '',
-    birth_date: '',
-    image1_data: '',
-    image1_type: '',
-    image2_data: '',
-    image2_type: ''
+    birth_date: ''
   });
-  const [loading, setLoading] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [customerFound, setCustomerFound] = useState(false);
-  const [language, setLanguage] = useState<'ar' | 'he' | 'en'>('ar');
   const [selectedService, setSelectedService] = useState<any>(null);
-  const [fromCalculator, setFromCalculator] = useState(false);
-  const [calculatorData, setCalculatorData] = useState<any>(null);
-  const [image1, setImage1] = useState<string | null>(null);
-  const [image2, setImage2] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [language, setLanguage] = useState<'ar' | 'he' | 'en'>('ar');
+  const [idImage, setIdImage] = useState<string | null>(null);
+  const [licenseImage, setLicenseImage] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    loadInitialData();
+    loadSelectedService();
+    loadLanguage();
   }, []);
 
   useFocusEffect(
     React.useCallback(() => {
-      console.log('🔄 تم تفعيل صفحة معلومات الزبائن - فحص البيانات...');
+      loadSelectedService();
       loadLanguage();
     }, [])
   );
@@ -54,320 +43,90 @@ export default function CustomerInfoScreen() {
       const savedLanguage = await AsyncStorage.getItem('selectedLanguage');
       if (savedLanguage && ['ar', 'he', 'en'].includes(savedLanguage)) {
         setLanguage(savedLanguage as 'ar' | 'he' | 'en');
-        console.log('✅ تم تحميل اللغة:', savedLanguage);
       }
     } catch (error) {
       console.log('خطأ في تحميل اللغة:', error);
     }
   };
 
-  const loadInitialData = async () => {
+  const loadSelectedService = async () => {
     try {
-      console.log('🔄 بدء تحميل البيانات الأولية...');
+      const serviceNumber = await AsyncStorage.getItem('selectedServiceNumber');
+      const serviceName = await AsyncStorage.getItem('selectedServiceName');
+      const serviceNameHe = await AsyncStorage.getItem('selectedServiceNameHe');
+      const serviceNameEn = await AsyncStorage.getItem('selectedServiceNameEn');
       
-      // تحميل اللغة
-      await loadLanguage();
-
-      // مسح البيانات السابقة أولاً
-      setCustomerInfo({
-        customer_name: '',
-        national_id: '',
-        phone_number: '',
-        birth_date: '',
-        image1_data: '',
-        image1_type: '',
-        image2_data: '',
-        image2_type: ''
-      });
-      setImage1(null);
-      setImage2(null);
-      setCustomerFound(false);
-      setSelectedService(null);
-      setFromCalculator(false);
-      setCalculatorData(null);
-
-      // فحص إذا كان قادماً من الآلة الحاسبة
-      const isFromCalculator = await AsyncStorage.getItem('fromCalculator');
-      const calculatorTransactionData = await AsyncStorage.getItem('calculatorData');
-      
-      console.log('🔍 فحص مصدر الوصول:');
-      console.log('- fromCalculator:', isFromCalculator);
-      console.log('- calculatorData exists:', !!calculatorTransactionData);
-      
-      if (isFromCalculator === 'true' && calculatorTransactionData) {
-        console.log('📊 قادم من الآلة الحاسبة');
-        setFromCalculator(true);
-        setCalculatorData(JSON.parse(calculatorTransactionData));
-        
-        // تعيين الخدمة كصرافة أموال
-        const exchangeService = {
-          id: '8',
-          service_number: 8,
-          service_name: 'صرافة أموال',
-          service_name_he: 'החלפת כספים',
-          service_name_en: 'Money Exchange'
+      if (serviceNumber && serviceName) {
+        const service = {
+          service_number: parseInt(serviceNumber),
+          service_name: serviceName,
+          service_name_he: serviceNameHe || '',
+          service_name_en: serviceNameEn || ''
         };
-        setSelectedService(exchangeService);
-        console.log('✅ تم تعيين الخدمة: صرافة أموال');
+        
+        setSelectedService(service);
+        console.log('✅ تم تحميل الخدمة المختارة:', service);
       } else {
-        // تحميل الخدمة المختارة من صفحة الخدمات
-        const serviceNumber = await AsyncStorage.getItem('selectedServiceNumber');
-        const serviceName = await AsyncStorage.getItem('selectedServiceName');
-        const serviceNameHe = await AsyncStorage.getItem('selectedServiceNameHe');
-        const serviceNameEn = await AsyncStorage.getItem('selectedServiceNameEn');
-        
-        console.log('🔍 فحص الخدمة المختارة من AsyncStorage:');
-        console.log('- selectedServiceNumber:', serviceNumber);
-        console.log('- selectedServiceName:', serviceName);
-        console.log('- selectedServiceNameHe:', serviceNameHe);
-        console.log('- selectedServiceNameEn:', serviceNameEn);
-        
-        if (serviceNumber && serviceName) {
-          const serviceNum = parseInt(serviceNumber);
-          console.log('🔄 إنشاء كائن الخدمة للرقم:', serviceNum);
-          
-          const service = {
-            id: serviceNum.toString(),
-            service_number: serviceNum,
-            service_name: serviceName,
-            service_name_he: serviceNameHe || '',
-            service_name_en: serviceNameEn || ''
-          };
-          setSelectedService(service);
-          console.log('✅ تم تحميل الخدمة المختارة:', service.service_name);
-          console.log('📊 تفاصيل الخدمة الكاملة:', service);
-        } else {
-          console.log('⚠️ لم يتم العثور على خدمة محددة');
-        }
+        console.log('❌ لم يتم العثور على خدمة مختارة');
+        Alert.alert('خطأ', 'لم يتم اختيار خدمة');
+        router.back();
       }
     } catch (error) {
-      console.error('❌ خطأ في تحميل البيانات:', error);
+      console.error('خطأ في تحميل الخدمة المختارة:', error);
     }
   };
 
-  const searchCustomerByNationalId = async (nationalId: string) => {
-    if (nationalId.length !== 9) {
-      setCustomerFound(false);
-      return;
-    }
-
-    try {
-      setSearching(true);
-      console.log(`🔍 البحث عن زبون برقم الهوية: ${nationalId}`);
-      
-      const customer = await customerService.getByNationalId(nationalId);
-      
-      if (customer) {
-        console.log(`✅ تم العثور على الزبون: ${customer.customer_name}`);
-        
-        // ملء البيانات تلقائياً
-        setCustomerInfo({
-          customer_name: customer.customer_name,
-          national_id: customer.national_id,
-          phone_number: customer.phone_number || '',
-          birth_date: customer.birth_date,
-          image1_data: customer.image1_data || customerInfo.image1_data || '',
-          image1_type: customer.image1_type || customerInfo.image1_type || '',
-          image2_data: customer.image2_data || customerInfo.image2_data || '',
-          image2_type: customer.image2_type || customerInfo.image2_type || ''
-        });
-
-        // تحميل الصور إذا كانت متوفرة
-        if (customer.image1_data && customer.image1_data.trim()) {
-          setImage1(customer.image1_data);
-        }
-        if (customer.image2_data && customer.image2_data.trim()) {
-          setImage2(customer.image2_data);
-        }
-
-        setCustomerFound(true);
-        
-        // إظهار رسالة تأكيد
-        Alert.alert(
-          language === 'ar' ? '✅ تم العثور على الزبون' : 
-          language === 'he' ? '✅ הלקוח נמצא' : 
-          '✅ Customer Found',
-          
-          language === 'ar' ? `تم تحميل بيانات الزبون: ${customer.customer_name}` :
-          language === 'he' ? `נטענו פרטי הלקוח: ${customer.customer_name}` :
-          `Customer data loaded: ${customer.customer_name}`
-        );
-      } else {
-        console.log('📝 لم يتم العثور على الزبون');
-        setCustomerFound(false);
-        
-        // مسح البيانات عدا رقم الهوية
-        setCustomerInfo(prev => ({
-          customer_name: '',
-          national_id: prev.national_id,
-          phone_number: '',
-          birth_date: '',
-          image1_data: '',
-          image1_type: '',
-          image2_data: '',
-          image2_type: ''
-        }));
-        setImage1(null);
-        setImage2(null);
-      }
-    } catch (error) {
-      console.error('❌ خطأ في البحث عن الزبون:', error);
-      setCustomerFound(false);
-    } finally {
-      setSearching(false);
-    }
-  };
-
-  const handleNationalIdChange = (text: string) => {
-    // السماح بالأرقام فقط
-    const numericText = text.replace(/[^0-9]/g, '');
-    
-    setCustomerInfo(prev => ({ ...prev, national_id: numericText }));
-    
-    // البحث التلقائي عند إكمال 9 أرقام
-    if (numericText.length === 9) {
-      searchCustomerByNationalId(numericText);
-    } else {
-      setCustomerFound(false);
-      setSearching(false);
-    }
-  };
-
-  const getServiceNameInLanguage = (serviceNumber: number, lang: 'ar' | 'he' | 'en'): string => {
-    const serviceNames = {
-      1: { ar: 'إنشاء فيزا', he: 'יצירת כרטיס', en: 'Create Card' },
-      2: { ar: 'تحويل للخارج', he: 'העברה לחו"ל', en: 'International Transfer' },
-      3: { ar: 'سحب حوالة', he: 'משיכת העברה', en: 'Receive Transfer' },
-      4: { ar: 'صرافة شيكات', he: 'פדיון צ\'קים', en: 'Check Cashing' },
-      5: { ar: 'تحويل لحساب بنك صاحب المحل', he: 'העברה לחשבון הבנק', en: 'Bank Account Transfer' },
-      6: { ar: 'سحب من الفيزا', he: 'משיכה מכרטיס', en: 'Card Withdrawal' },
-      7: { ar: 'إيداع في الفيزا', he: 'הפקדה בכרטיס', en: 'Card Deposit' },
-      8: { ar: 'صرافة أموال', he: 'החלפת כספים', en: 'Money Exchange' }
-    };
-
-    return serviceNames[serviceNumber as keyof typeof serviceNames]?.[lang] || 'خدمة غير معروفة';
-  };
-
-  const getDisplayedServiceName = (): string => {
-    if (!selectedService) {
-      return language === 'ar' ? 'خدمة غير محددة' :
-             language === 'he' ? 'שירות לא מוגדר' :
-             'Service Not Selected';
-    }
-
-    console.log(`🔤 عرض اسم الخدمة ${selectedService.service_number} باللغة ${language}`);
-    console.log('📊 بيانات الخدمة:', {
-      ar: selectedService.service_name,
-      he: selectedService.service_name_he,
-      en: selectedService.service_name_en
-    });
+  const getServiceName = () => {
+    if (!selectedService) return '';
     
     switch (language) {
       case 'he':
-        const heName = selectedService.service_name_he || selectedService.service_name;
-        console.log(`✅ عرض الاسم العبري: ${heName}`);
-        return heName;
+        return selectedService.service_name_he || selectedService.service_name;
       case 'en':
-        const enName = selectedService.service_name_en || selectedService.service_name;
-        console.log(`✅ عرض الاسم الإنجليزي: ${enName}`);
-        return enName;
+        return selectedService.service_name_en || selectedService.service_name;
       default:
-        console.log(`✅ عرض الاسم العربي: ${selectedService.service_name}`);
         return selectedService.service_name;
     }
   };
 
-  const getRequiredFields = () => {
-    if (!selectedService) return { basic: true, phone: false, images: false };
+  const searchCustomer = async () => {
+    if (!customerInfo.national_id.trim()) {
+      Alert.alert('خطأ', 'يرجى إدخال رقم الهوية');
+      return;
+    }
 
-    const serviceNumber = selectedService.service_number;
-
-    switch (serviceNumber) {
-      case 8: // صرافة أموال (من الآلة الحاسبة)
-        return { basic: true, phone: false, images: false };
+    try {
+      console.log(`🔍 البحث عن زبون برقم الهوية: ${customerInfo.national_id}`);
       
-      case 1: // إنشاء فيزا
-        return { basic: true, phone: true, images: true };
+      const existingCustomer = await customerService.getByNationalId(customerInfo.national_id);
       
-      case 7: // إيداع في الفيزا
-        return { basic: true, phone: false, images: false };
-      
-      case 2: // تحويل للخارج
-      case 4: // صرافة شيكات
-      case 5: // تحويل لحساب بنك
-      case 6: // سحب من الفيزا
-        return { basic: true, phone: true, images: true };
-      
-      case 3: // سحب حوالة
-        return { basic: true, phone: true, images: true };
-      
-      default:
-        return { basic: true, phone: false, images: false };
+      if (existingCustomer) {
+        console.log(`✅ تم العثور على الزبون: ${existingCustomer.customer_name}`);
+        
+        setCustomerInfo({
+          customer_name: existingCustomer.customer_name,
+          national_id: existingCustomer.national_id,
+          phone_number: existingCustomer.phone_number || '',
+          birth_date: existingCustomer.birth_date || ''
+        });
+        
+        Alert.alert('تم العثور على الزبون', `الاسم: ${existingCustomer.customer_name}`);
+      } else {
+        console.log('📝 لم يتم العثور على الزبون - زبون جديد');
+        Alert.alert('زبون جديد', 'لم يتم العثور على هذا الزبون، يرجى إدخال البيانات');
+      }
+    } catch (error) {
+      console.error('خطأ في البحث عن الزبون:', error);
+      Alert.alert('خطأ', 'حدث خطأ في البحث عن الزبون');
     }
   };
 
-  const getImage1Label = () => {
-    switch (language) {
-      case 'he': return 'תמונת תעודת זהות';
-      case 'en': return 'ID Photo';
-      default: return 'صورة الهوية';
-    }
-  };
-
-  const getImage2Label = () => {
-    if (!selectedService) return 'صورة إضافية';
-    
-    const serviceNumber = selectedService.service_number;
-    
-    switch (serviceNumber) {
-      case 1: // إنشاء فيزا
-        switch (language) {
-          case 'he': return 'תמונת רישיון נהיגה';
-          case 'en': return 'Driver License Photo';
-          default: return 'صورة رخصة القيادة';
-        }
-      
-      case 4: // صرافة شيكات
-      case 5: // تحويل لحساب بنك
-      case 6: // سحب من الفيزا
-        switch (language) {
-          case 'he': return 'תמונת רישיון נהיגה';
-          case 'en': return 'Driver License Photo';
-          default: return 'صورة رخصة القيادة';
-        }
-      
-      case 2: // تحويل للخارج
-        switch (language) {
-          case 'he': return 'תמונת דרכון הנמען';
-          case 'en': return 'Recipient Passport Photo';
-          default: return 'صورة جواز سفر المرسل إليه';
-        }
-      
-      case 3: // سحب حوالة
-        switch (language) {
-          case 'he': return 'תמונת רישיון נהיגה';
-          case 'en': return 'Driver License Photo';
-          default: return 'صورة رخصة القيادة';
-        }
-      
-      default:
-        switch (language) {
-          case 'he': return 'תמונה נוספת';
-          case 'en': return 'Additional Photo';
-          default: return 'صورة إضافية';
-        }
-    }
-  };
-
-  const pickImage = async (imageNumber: 1 | 2) => {
+  const pickImage = async (type: 'id' | 'license') => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (permissionResult.granted === false) {
-        Alert.alert(
-          language === 'ar' ? 'إذن مطلوب' : language === 'he' ? 'נדרש אישור' : 'Permission Required',
-          language === 'ar' ? 'نحتاج إذن للوصول للصور' : language === 'he' ? 'אנחנו צריכים אישור לגישה לתמונות' : 'We need permission to access photos'
-        );
+        Alert.alert('إذن مطلوب', 'نحتاج إذن للوصول للصور');
         return;
       }
 
@@ -381,432 +140,199 @@ export default function CustomerInfoScreen() {
       if (!result.canceled && result.assets[0]) {
         const imageUri = result.assets[0].uri;
         
-        if (imageNumber === 1) {
-          setImage1(imageUri);
-          setCustomerInfo(prev => ({ ...prev, image1_data: imageUri, image1_type: 'image/jpeg' }));
-          console.log('✅ تم اختيار الصورة الأولى:', imageUri);
+        if (type === 'id') {
+          setIdImage(imageUri);
+          console.log('✅ تم اختيار صورة الهوية');
         } else {
-          setImage2(imageUri);
-          setCustomerInfo(prev => ({ ...prev, image2_data: imageUri, image2_type: 'image/jpeg' }));
-          console.log('✅ تم اختيار الصورة الثانية:', imageUri);
+          setLicenseImage(imageUri);
+          console.log('✅ تم اختيار صورة الرخصة');
         }
       }
     } catch (error) {
       console.error('خطأ في اختيار الصورة:', error);
-      Alert.alert(
-        language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
-        language === 'ar' ? 'حدث خطأ في اختيار الصورة' : language === 'he' ? 'אירעה שגיאה בבחירת התמונה' : 'Error occurred while selecting image'
-      );
+      Alert.alert('خطأ', 'حدث خطأ في اختيار الصورة');
     }
-  };
-
-  const removeImage = (imageNumber: 1 | 2) => {
-    if (imageNumber === 1) {
-      setImage1(null);
-      setCustomerInfo(prev => ({ ...prev, image1_data: '', image1_type: '' }));
-      console.log('🗑️ تم حذف الصورة الأولى');
-    } else {
-      setImage2(null);
-      setCustomerInfo(prev => ({ ...prev, image2_data: '', image2_type: '' }));
-      console.log('🗑️ تم حذف الصورة الثانية');
-    }
-  };
-
-  const validateCustomerInfo = (): boolean => {
-    const requiredFields = getRequiredFields();
-    
-    // التحقق من الحقول الأساسية
-    if (!customerInfo.customer_name.trim()) {
-      Alert.alert(
-        language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
-        language === 'ar' ? 'يرجى إدخال اسم الزبون' : 
-        language === 'he' ? 'אנא הכנס שם הלקוח' : 
-        'Please enter customer name'
-      );
-      return false;
-    }
-
-    if (!customerInfo.national_id.trim() || customerInfo.national_id.length !== 9) {
-      Alert.alert(
-        language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
-        language === 'ar' ? 'يرجى إدخال رقم هوية صحيح (9 أرقام)' : 
-        language === 'he' ? 'אנא הכנס מספר זהות תקין (9 ספרות)' : 
-        'Please enter valid ID number (9 digits)'
-      );
-      return false;
-    }
-
-    if (!customerInfo.birth_date.trim()) {
-      Alert.alert(
-        language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
-        language === 'ar' ? 'يرجى إدخال تاريخ الميلاد' : 
-        language === 'he' ? 'אנא הכנס תאריך לידה' : 
-        'Please enter birth date'
-      );
-      return false;
-    }
-
-    // التحقق من رقم الهاتف إذا كان مطلوباً
-    if (requiredFields.phone && !customerInfo.phone_number.trim()) {
-      Alert.alert(
-        language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
-        language === 'ar' ? 'يرجى إدخال رقم الهاتف' : 
-        language === 'he' ? 'אנא הכנס מספר טלפון' : 
-        'Please enter phone number'
-      );
-      return false;
-    }
-
-    // التحقق من الصور إذا كانت مطلوبة
-    if (requiredFields.images) {
-      if (!image1) {
-        Alert.alert(
-          language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
-          language === 'ar' ? 'يرجى رفع صورة الهوية' : 
-          language === 'he' ? 'אנא העלה תמונת תעודת זהות' : 
-          'Please upload ID photo'
-        );
-        return false;
-      }
-
-      if (!image2) {
-        Alert.alert(
-          language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
-          language === 'ar' ? `يرجى رفع ${getImage2Label()}` : 
-          language === 'he' ? `אנא העלה ${getImage2Label()}` : 
-          `Please upload ${getImage2Label()}`
-        );
-        return false;
-      }
-    }
-
-    return true;
-  };
-
-  const navigateToServiceScreen = async () => {
-    if (!selectedService) {
-      Alert.alert('خطأ', 'لم يتم تحديد الخدمة');
-      return;
-    }
-
-    const serviceNumber = selectedService.service_number;
-    console.log(`🔄 الانتقال لصفحة الخدمة رقم ${serviceNumber}`);
-
-    // الانتقال لصفحة الخدمة المناسبة
-    switch (serviceNumber) {
-      case 1:
-        router.push('/services/visa-creation');
-        break;
-      case 2:
-        router.push('/services/transfer');
-        break;
-      case 3:
-        router.push('/services/remittance');
-        break;
-      case 4:
-        router.push('/services/check');
-        break;
-      case 5:
-        router.push('/services/bank');
-        break;
-      case 6:
-        router.push('/services/withdraw');
-        break;
-      case 7:
-        router.push('/services/deposit');
-        break;
-      case 8:
-        router.push('/services/exchange');
-        break;
-      default:
-        Alert.alert('خطأ', 'خدمة غير مدعومة');
-    }
-  };
-
-  const showCalculatorTransactionMessage = () => {
-    const fromCurrencyName = calculatorData.fromCurrency === 'ILS' ? 
-      (language === 'ar' ? 'شيقل' : language === 'he' ? 'שקל' : 'Shekel') :
-      calculatorData.fromCurrency;
-    
-    const toCurrencyName = calculatorData.toCurrency === 'ILS' ? 
-      (language === 'ar' ? 'شيقل' : language === 'he' ? 'שקל' : 'Shekel') :
-      calculatorData.toCurrency;
-
-    Alert.alert(
-      language === 'ar' ? '✅ تم تسجيل المعاملة بنجاح' : 
-      language === 'he' ? '✅ העסקה נרשמה בהצלחה' : 
-      '✅ Transaction Recorded Successfully',
-      
-      language === 'ar' ? 
-        `🙏 شكراً لاختيارك محلنا\n\n` +
-        `📋 يرجى التقدم إلى الشباك وانتظار دورك\n\n` +
-        `تفاصيل المعاملة:\n` +
-        `الزبون: ${customerInfo.customer_name}\n` +
-        `من: ${calculatorData.fromAmount} ${fromCurrencyName}\n` +
-        `إلى: ${calculatorData.toAmount} ${toCurrencyName}\n\n` +
-        `✅ تم تسجيل المعاملة في النظام بنجاح` :
-      
-      language === 'he' ? 
-        `🙏 תודה שבחרת בחנות שלנו\n\n` +
-        `📋 אנא פנה לדלפק והמתן לתורך\n\n` +
-        `פרטי העסקה:\n` +
-        `לקוח: ${customerInfo.customer_name}\n` +
-        `מ: ${calculatorData.fromAmount} ${fromCurrencyName}\n` +
-        `ל: ${calculatorData.toAmount} ${toCurrencyName}\n\n` +
-        `✅ העסקה נרשמה במערכת בהצלחה` :
-      
-        `🙏 Thank you for choosing our store\n\n` +
-        `📋 Please proceed to the counter and wait for your turn\n\n` +
-        `Transaction Details:\n` +
-        `Customer: ${customerInfo.customer_name}\n` +
-        `From: ${calculatorData.fromAmount} ${fromCurrencyName}\n` +
-        `To: ${calculatorData.toAmount} ${toCurrencyName}\n\n` +
-        `✅ Transaction recorded in system successfully`,
-      
-      [
-        {
-          text: language === 'ar' ? '🏠 العودة لأسعار اليوم' : 
-                language === 'he' ? '🏠 חזרה למחירי היום' : 
-                '🏠 Back to Today\'s Prices',
-          onPress: () => router.replace('/(tabs)/prices')
-        }
-      ]
-    );
-  };
-
-  const showVisaCreationMessage = () => {
-    Alert.alert(
-      language === 'ar' ? '✅ تم تسجيل طلب إنشاء الفيزا بنجاح' : 
-      language === 'he' ? '✅ בקשת יצירת הכרטיס נרשמה בהצלחה' : 
-      '✅ Card Creation Request Recorded Successfully',
-      
-      language === 'ar' ? 
-        `🙏 شكراً لاختيارك محلنا\n\n` +
-        `📋 يرجى التقدم إلى الشباك وانتظار دورك\n\n` +
-        `تفاصيل المعاملة:\n` +
-        `الزبون: ${customerInfo.customer_name}\n` +
-        `الخدمة: إنشاء فيزا\n` +
-        `الرسوم: 45 شيقل\n\n` +
-        `✅ تم تسجيل المعاملة في النظام بنجاح` :
-      
-      language === 'he' ? 
-        `🙏 תודה שבחרת בחנות שלנו\n\n` +
-        `📋 אנא פנה לדלפק והמתן לתורך\n\n` +
-        `פרטי העסקה:\n` +
-        `לקוח: ${customerInfo.customer_name}\n` +
-        `שירות: יצירת כרטיס\n` +
-        `עמלה: 45 שקל\n\n` +
-        `✅ העסקה נרשמה במערכת בהצלחה` :
-      
-        `🙏 Thank you for choosing our store\n\n` +
-        `📋 Please proceed to the counter and wait for your turn\n\n` +
-        `Transaction Details:\n` +
-        `Customer: ${customerInfo.customer_name}\n` +
-        `Service: Create Card\n` +
-        `Fee: 45 Shekel\n\n` +
-        `✅ Transaction recorded in system successfully`,
-      
-      [
-        {
-          text: language === 'ar' ? '🏠 العودة لأسعار اليوم' : 
-                language === 'he' ? '🏠 חזרה למחירי היום' : 
-                '🏠 Back to Today\'s Prices',
-          onPress: () => router.replace('/(tabs)/prices')
-        }
-      ]
-    );
   };
 
   const handleContinue = async () => {
-    if (!validateCustomerInfo()) return;
+    // التحقق من البيانات المطلوبة
+    if (!customerInfo.customer_name.trim()) {
+      Alert.alert('خطأ', 'يرجى إدخال اسم الزبون');
+      return;
+    }
+
+    if (!customerInfo.national_id.trim()) {
+      Alert.alert('خطأ', 'يرجى إدخال رقم الهوية');
+      return;
+    }
+
+    if (!customerInfo.birth_date.trim()) {
+      Alert.alert('خطأ', 'يرجى إدخال تاريخ الميلاد');
+      return;
+    }
+
+    // التحقق من المتطلبات الخاصة لخدمة إنشاء الفيزا
+    if (selectedService?.service_number === 1) {
+      if (!customerInfo.phone_number.trim()) {
+        Alert.alert('خطأ', 'رقم الهاتف مطلوب لخدمة إنشاء الفيزا');
+        return;
+      }
+
+      if (!idImage) {
+        Alert.alert('خطأ', 'صورة الهوية مطلوبة لخدمة إنشاء الفيزا');
+        return;
+      }
+
+      if (!licenseImage) {
+        Alert.alert('خطأ', 'صورة رخصة القيادة مطلوبة لخدمة إنشاء الفيزا');
+        return;
+      }
+    }
 
     try {
       setLoading(true);
       console.log('🔄 معالجة بيانات الزبون...');
 
-      // حفظ معرف الزبون الحالي في التخزين المحلي
-      await AsyncStorage.setItem('currentCustomerId', customerInfo.national_id);
-      await AsyncStorage.setItem('currentCustomerName', customerInfo.customer_name);
-      await AsyncStorage.setItem('currentCustomerPhone', customerInfo.phone_number);
-      await AsyncStorage.setItem('currentCustomerBirthDate', customerInfo.birth_date);
-      
-      if (image1) {
-        await AsyncStorage.setItem('currentCustomerImage1', image1);
-      }
-      if (image2) {
-        await AsyncStorage.setItem('currentCustomerImage2', image2);
-      }
-      
-      console.log('✅ تم حفظ بيانات الزبون في التخزين المحلي');
-
-      // معالجة المعاملة حسب نوع الخدمة
-      if (fromCalculator && calculatorData) {
-        // إنشاء أو تحديث بيانات الزبون في قاعدة البيانات
-        try {
-          const existingCustomer = await customerService.getByNationalId(customerInfo.national_id);
-          
-          if (existingCustomer) {
-            // تحديث بيانات الزبون الموجود
-            await customerService.update(existingCustomer.id, {
-              customer_name: customerInfo.customer_name,
-              phone_number: customerInfo.phone_number,
-              birth_date: customerInfo.birth_date,
-              image1_data: image1 || '',
-              image1_type: image1 ? 'image/jpeg' : '',
-              image2_data: image2 || '',
-              image2_type: image2 ? 'image/jpeg' : ''
-            });
-            console.log('✅ تم تحديث بيانات الزبون في قاعدة البيانات');
-          } else {
-            // إنشاء زبون جديد
-            await customerService.create({
-              customer_name: customerInfo.customer_name,
-              national_id: customerInfo.national_id,
-              phone_number: customerInfo.phone_number,
-              birth_date: customerInfo.birth_date,
-              image1_data: image1 || '',
-              image1_type: image1 ? 'image/jpeg' : '',
-              image2_data: image2 || '',
-              image2_type: image2 ? 'image/jpeg' : ''
-            });
-            console.log('✅ تم إنشاء زبون جديد في قاعدة البيانات');
-          }
-        } catch (customerError) {
-          console.error('❌ خطأ في حفظ بيانات الزبون في قاعدة البيانات:', customerError);
-          // المتابعة حتى لو فشل حفظ الزبون
-        }
-
-        // إنشاء معاملة صرافة الأموال في جدول transactions
-        try {
-          const transactionData = {
-            service_number: 8, // صرافة أموال
-            amount_paid: parseFloat(calculatorData.fromAmount),
-            currency_paid: calculatorData.fromCurrency,
-            amount_received: parseFloat(calculatorData.toAmount),
-            currency_received: calculatorData.toCurrency,
-            customer_id: customerInfo.national_id,
-            notes: `معاملة صرافة أموال - الزبون: ${customerInfo.customer_name}`
-          };
-          
-          console.log('🔄 إنشاء معاملة صرافة الأموال في جدول transactions:', transactionData);
-          
-          // إضافة المعاملة إلى قاعدة البيانات
-          await transactionService.create(transactionData);
-          
-          console.log('✅ تم حفظ معاملة صرافة الأموال في جدول transactions بنجاح');
-        } catch (transactionError) {
-          console.error('❌ خطأ في حفظ المعاملة في قاعدة البيانات:', transactionError);
-          // المتابعة حتى لو فشل حفظ المعاملة
-        }
-
-        // تنظيف البيانات المؤقتة
-        await AsyncStorage.removeItem('fromCalculator');
-        await AsyncStorage.removeItem('calculatorData');
+      // حفظ أو تحديث بيانات الزبون
+      try {
+        const existingCustomer = await customerService.getByNationalId(customerInfo.national_id);
         
-        // عرض رسالة الشكر والتوجيه
-        showCalculatorTransactionMessage();
-      } else if (selectedService && selectedService.service_number === 1) {
-        // معالجة خدمة إنشاء الفيزا - إتمام العملية مباشرة
-        try {
-          const existingCustomer = await customerService.getByNationalId(customerInfo.national_id);
-          
-          if (existingCustomer) {
-            // تحديث بيانات الزبون الموجود
-            await customerService.update(existingCustomer.id, {
-              customer_name: customerInfo.customer_name,
-              phone_number: customerInfo.phone_number,
-              birth_date: customerInfo.birth_date,
-              image1_data: image1 || '',
-              image1_type: image1 ? 'image/jpeg' : '',
-              image2_data: image2 || '',
-              image2_type: image2 ? 'image/jpeg' : ''
-              image2_data: image2 || '',
-              image2_type: image2 ? 'image/jpeg' : ''
-            });
-            console.log('✅ تم تحديث بيانات الزبون في قاعدة البيانات');
-          } else {
-            // إنشاء زبون جديد
-            await customerService.create({
-              customer_name: customerInfo.customer_name,
-              national_id: customerInfo.national_id,
-              phone_number: customerInfo.phone_number,
-              birth_date: customerInfo.birth_date,
-              image1_data: image1 || '',
-              image1_type: image1 ? 'image/jpeg' : '',
-              image2_data: image2 || '',
-              image2_type: image2 ? 'image/jpeg' : ''
-              image2_data: image2 || '',
-              image2_type: image2 ? 'image/jpeg' : ''
-            });
-            console.log('✅ تم إنشاء زبون جديد في قاعدة البيانات');
-          }
-        } catch (customerError) {
-          console.error('❌ خطأ في حفظ بيانات الزبون في قاعدة البيانات:', customerError);
-          Alert.alert(
-            language === 'ar' ? 'تحذير' : language === 'he' ? 'אזהרה' : 'Warning',
-            language === 'ar' ? 'حدث خطأ في حفظ بيانات الزبون، لكن سيتم المتابعة' : 
-            language === 'he' ? 'אירעה שגיאה בשמירת נתוני הלקוח, אך נמשיך' : 
-            'Error saving customer data, but will continue'
-          );
+        const customerData = {
+          customer_name: customerInfo.customer_name,
+          national_id: customerInfo.national_id,
+          phone_number: customerInfo.phone_number,
+          birth_date: customerInfo.birth_date,
+          image1_data: idImage ? await convertImageToBase64(idImage) : null,
+          image1_type: idImage ? 'image/jpeg' : null,
+          image2_data: licenseImage ? await convertImageToBase64(licenseImage) : null,
+          image2_type: licenseImage ? 'image/jpeg' : null
+        };
+        
+        if (existingCustomer) {
+          await customerService.update(existingCustomer.id, customerData);
+          console.log('✅ تم تحديث بيانات الزبون');
+        } else {
+          await customerService.create(customerData);
+          console.log('✅ تم إنشاء زبون جديد');
         }
+      } catch (customerError) {
+        console.error('❌ خطأ في حفظ بيانات الزبون:', customerError);
+        Alert.alert('تحذير', 'حدث خطأ في حفظ بيانات الزبون، لكن سيتم المتابعة');
+      }
 
-        // إنشاء معاملة إنشاء الفيزا في جدول transactions
+      // معالجة خاصة لخدمة إنشاء الفيزا
+      if (selectedService?.service_number === 1) {
         try {
           const transactionData = {
-            service_number: 1, // إنشاء فيزا
-            amount_paid: 45, // رسوم إنشاء الفيزا
+            service_number: 1,
+            amount_paid: 45,
             currency_paid: 'ILS',
             amount_received: 0,
             currency_received: 'ILS',
             customer_id: customerInfo.national_id,
-            notes: `طلب إنشاء فيزا - الزبون: ${customerInfo.customer_name}`
+            notes: `طلب إنشاء فيزا - الزبون: ${customerInfo.customer_name} - الهاتف: ${customerInfo.phone_number}`
           };
           
-          console.log('🔄 إنشاء معاملة إنشاء الفيزا في جدول transactions:', transactionData);
-          
-          // إضافة المعاملة إلى قاعدة البيانات
           await transactionService.create(transactionData);
+          console.log('✅ تم حفظ معاملة إنشاء الفيزا');
           
-          console.log('✅ تم حفظ معاملة إنشاء الفيزا في جدول transactions بنجاح');
-        } catch (transactionError) {
-          console.error('❌ خطأ في حفظ المعاملة في قاعدة البيانات:', transactionError);
+          // تنظيف البيانات المؤقتة
+          await clearTemporaryData();
+          
           Alert.alert(
-            language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
-            language === 'ar' ? 'حدث خطأ في تسجيل المعاملة' : 
-            language === 'he' ? 'אירעה שגיאה ברישום העסקה' : 
-            'Error occurred recording transaction'
+            '✅ تم تسجيل طلب إنشاء الفيزا',
+            `🙏 شكراً لاختيارك محلنا\n\n` +
+            `📋 يرجى التقدم إلى الشباك وانتظار دورك\n\n` +
+            `تفاصيل الطلب:\n` +
+            `الزبون: ${customerInfo.customer_name}\n` +
+            `الخدمة: إنشاء فيزا\n` +
+            `الرسوم: 45 شيقل\n\n` +
+            `✅ تم تسجيل الطلب في النظام بنجاح`,
+            [
+              {
+                text: '🏠 العودة للأسعار',
+                onPress: () => router.replace('/(tabs)/prices')
+              }
+            ]
           );
-          return;
+          
+        } catch (transactionError) {
+          console.error('❌ خطأ في حفظ المعاملة:', transactionError);
+          Alert.alert('خطأ', 'حدث خطأ في تسجيل المعاملة');
         }
-
-        // تنظيف البيانات المؤقتة
-        await AsyncStorage.removeItem('currentCustomerId');
-        await AsyncStorage.removeItem('currentCustomerName');
-        await AsyncStorage.removeItem('currentCustomerPhone');
-        await AsyncStorage.removeItem('currentCustomerBirthDate');
-        await AsyncStorage.removeItem('currentCustomerImage1');
-        await AsyncStorage.removeItem('currentCustomerImage2');
-        await AsyncStorage.removeItem('selectedServiceNumber');
-        await AsyncStorage.removeItem('selectedServiceName');
-        await AsyncStorage.removeItem('selectedServiceNameHe');
-        await AsyncStorage.removeItem('selectedServiceNameEn');
-        
-        // عرض رسالة الشكر والتوجيه
-        showVisaCreationMessage();
       } else {
-        await navigateToServiceScreen();
+        // للخدمات الأخرى - حفظ البيانات والانتقال للخدمة
+        await AsyncStorage.setItem('currentCustomerId', customerInfo.national_id);
+        await AsyncStorage.setItem('currentCustomerName', customerInfo.customer_name);
+        await AsyncStorage.setItem('currentCustomerPhone', customerInfo.phone_number);
+        await AsyncStorage.setItem('currentCustomerBirthDate', customerInfo.birth_date);
+        
+        if (idImage) {
+          await AsyncStorage.setItem('currentCustomerImage1', idImage);
+        }
+        if (licenseImage) {
+          await AsyncStorage.setItem('currentCustomerImage2', licenseImage);
+        }
+        
+        // الانتقال للخدمة المحددة
+        const serviceRoutes: { [key: number]: string } = {
+          2: '/services/transfer',
+          3: '/services/remittance',
+          4: '/services/check',
+          5: '/services/bank',
+          6: '/services/withdraw',
+          7: '/services/deposit',
+          8: '/services/exchange'
+        };
+        
+        const route = serviceRoutes[selectedService?.service_number] || '/services/exchange';
+        router.push(route);
       }
 
     } catch (error) {
-      console.error('❌ خطأ في معالجة بيانات الزبون:', error);
-      Alert.alert(
-        language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
-        language === 'ar' ? 'حدث خطأ في معالجة البيانات' : 
-        language === 'he' ? 'אירעה שגיאה בעיבוד הנתונים' : 
-        'Error occurred while processing data'
-      );
+      console.error('خطأ في معالجة البيانات:', error);
+      Alert.alert('خطأ', 'حدث خطأ في معالجة البيانات');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const convertImageToBase64 = async (imageUri: string): Promise<string | null> => {
+    try {
+      // في بيئة الويب، نحتاج لتحويل الصورة إلى base64
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          resolve(base64.split(',')[1]); // إزالة البادئة data:image/...;base64,
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('خطأ في تحويل الصورة:', error);
+      return null;
+    }
+  };
+
+  const clearTemporaryData = async () => {
+    try {
+      await AsyncStorage.removeItem('selectedServiceNumber');
+      await AsyncStorage.removeItem('selectedServiceName');
+      await AsyncStorage.removeItem('selectedServiceNameHe');
+      await AsyncStorage.removeItem('selectedServiceNameEn');
+      await AsyncStorage.removeItem('currentCustomerId');
+      await AsyncStorage.removeItem('currentCustomerName');
+      await AsyncStorage.removeItem('currentCustomerPhone');
+      await AsyncStorage.removeItem('currentCustomerBirthDate');
+      await AsyncStorage.removeItem('currentCustomerImage1');
+      await AsyncStorage.removeItem('currentCustomerImage2');
+      console.log('🧹 تم تنظيف البيانات المؤقتة');
+    } catch (error) {
+      console.error('خطأ في تنظيف البيانات:', error);
     }
   };
 
@@ -818,31 +344,13 @@ export default function CustomerInfoScreen() {
     return language === 'en' ? 'left' : 'right';
   };
 
-  const getNationalIdInputStyle = () => {
-    if (searching) {
-      return [styles.input, styles.searchingInput, { textAlign: 'center' }];
-    } else if (customerFound) {
-      return [styles.input, styles.foundInput, { textAlign: 'center' }];
+  const removeImage = (type: 'id' | 'license') => {
+    if (type === 'id') {
+      setIdImage(null);
     } else {
-      return [styles.input, { textAlign: 'center' }];
+      setLicenseImage(null);
     }
   };
-
-  const getNationalIdPlaceholder = () => {
-    if (searching) {
-      return language === 'ar' ? 'جاري البحث...' : 
-             language === 'he' ? 'מחפש...' : 
-             'Searching...';
-    } else if (customerFound) {
-      return language === 'ar' ? '✅ تم العثور على الزبون' : 
-             language === 'he' ? '✅ הלקוח נמצא' : 
-             '✅ Customer Found';
-    } else {
-      return '123456789';
-    }
-  };
-
-  const requiredFields = getRequiredFields();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -871,55 +379,51 @@ export default function CustomerInfoScreen() {
 
         <View style={styles.content}>
           {/* Selected Service Display */}
-          <View style={styles.selectedServiceContainer}>
-            <Text style={[styles.selectedServiceLabel, { textAlign: getTextAlign() }]}>
-              {language === 'ar' && 'الخدمة المختارة:'}
-              {language === 'he' && 'השירות הנבחר:'}
-              {language === 'en' && 'Selected Service:'}
-            </Text>
-            <Text style={[styles.selectedServiceName, { textAlign: getTextAlign() }]}>
-              {getDisplayedServiceName()}
-            </Text>
-          </View>
+          {selectedService && (
+            <View style={styles.serviceContainer}>
+              <Text style={[styles.serviceTitle, { textAlign: getTextAlign() }]}>
+                {language === 'ar' && 'الخدمة المختارة:'}
+                {language === 'he' && 'השירות הנבחר:'}
+                {language === 'en' && 'Selected Service:'}
+              </Text>
+              <Text style={[styles.serviceName, { textAlign: getTextAlign() }]}>
+                {getServiceName()}
+              </Text>
+            </View>
+          )}
 
-          {/* Customer Information Form */}
+          {/* Customer Form */}
           <View style={styles.formContainer}>
             <Text style={[styles.sectionTitle, { textAlign: getTextAlign() }]}>
-              {language === 'ar' && 'البيانات الأساسية:'}
-              {language === 'he' && 'פרטים בסיסיים:'}
-              {language === 'en' && 'Basic Information:'}
+              {language === 'ar' && 'بيانات الزبون:'}
+              {language === 'he' && 'פרטי הלקוח:'}
+              {language === 'en' && 'Customer Details:'}
             </Text>
 
-            {/* National ID with Auto Search */}
+            {/* National ID with Search */}
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { textAlign: getTextAlign() }]}>
-                {language === 'ar' && 'رقم الهوية (9 أرقام):'}
-                {language === 'he' && 'מספר זהות (9 ספרות):'}
-                {language === 'en' && 'National ID (9 digits):'}
+                {language === 'ar' && 'رقم الهوية:'}
+                {language === 'he' && 'מספר זהות:'}
+                {language === 'en' && 'National ID:'}
               </Text>
-              <TextInput
-                style={getNationalIdInputStyle()}
-                value={customerInfo.national_id}
-                onChangeText={handleNationalIdChange}
-                placeholder={getNationalIdPlaceholder()}
-                keyboardType="numeric"
-                maxLength={9}
-                editable={!searching}
-              />
-              {searching && (
-                <Text style={[styles.searchingText, { textAlign: getTextAlign() }]}>
-                  {language === 'ar' && 'جاري البحث في قاعدة البيانات...'}
-                  {language === 'he' && 'מחפש במסד הנתונים...'}
-                  {language === 'en' && 'Searching in database...'}
-                </Text>
-              )}
-              {customerFound && (
-                <Text style={[styles.foundText, { textAlign: getTextAlign() }]}>
-                  {language === 'ar' && '✅ تم العثور على الزبون وتحميل بياناته'}
-                  {language === 'he' && '✅ הלקוח נמצא והנתונים נטענו'}
-                  {language === 'en' && '✅ Customer found and data loaded'}
-                </Text>
-              )}
+              <View style={styles.searchContainer}>
+                <TextInput
+                  style={[styles.searchInput, { textAlign: 'center' }]}
+                  value={customerInfo.national_id}
+                  onChangeText={(text) => setCustomerInfo(prev => ({ ...prev, national_id: text }))}
+                  placeholder="123456789"
+                  keyboardType="numeric"
+                  maxLength={9}
+                />
+                <TouchableOpacity style={styles.searchButton} onPress={searchCustomer}>
+                  <Text style={styles.searchButtonText}>
+                    {language === 'ar' && '🔍 بحث'}
+                    {language === 'he' && '🔍 חיפוש'}
+                    {language === 'en' && '🔍 Search'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Customer Name */}
@@ -930,19 +434,33 @@ export default function CustomerInfoScreen() {
                 {language === 'en' && 'Customer Name:'}
               </Text>
               <TextInput
-                style={[
-                  styles.input, 
-                  customerFound && styles.foundInput,
-                  { textAlign: getTextAlign() }
-                ]}
+                style={[styles.input, { textAlign: getTextAlign() }]}
                 value={customerInfo.customer_name}
                 onChangeText={(text) => setCustomerInfo(prev => ({ ...prev, customer_name: text }))}
                 placeholder={
                   language === 'ar' ? 'أحمد محمد' :
                   language === 'he' ? 'אחמד מוחמד' :
-                  'Ahmad Mohammad'
+                  'Ahmed Mohammed'
                 }
-                editable={!customerFound}
+              />
+            </View>
+
+            {/* Phone Number */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { textAlign: getTextAlign() }]}>
+                {language === 'ar' && 'رقم الهاتف:'}
+                {language === 'he' && 'מספר טלפון:'}
+                {language === 'en' && 'Phone Number:'}
+                {selectedService?.service_number === 1 && (
+                  <Text style={styles.requiredText}> *</Text>
+                )}
+              </Text>
+              <TextInput
+                style={[styles.input, { textAlign: 'center' }]}
+                value={customerInfo.phone_number}
+                onChangeText={(text) => setCustomerInfo(prev => ({ ...prev, phone_number: text }))}
+                placeholder="0501234567"
+                keyboardType="phone-pad"
               />
             </View>
 
@@ -954,173 +472,92 @@ export default function CustomerInfoScreen() {
                 {language === 'en' && 'Birth Date:'}
               </Text>
               <TextInput
-                style={[
-                  styles.input, 
-                  customerFound && styles.foundInput,
-                  { textAlign: 'center' }
-                ]}
+                style={[styles.input, { textAlign: 'center' }]}
                 value={customerInfo.birth_date}
                 onChangeText={(text) => setCustomerInfo(prev => ({ ...prev, birth_date: text }))}
                 placeholder="1990-01-01"
-                editable={!customerFound}
               />
             </View>
 
-            {/* Phone Number (if required) */}
-            {requiredFields.phone && (
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { textAlign: getTextAlign() }]}>
-                  {language === 'ar' && 'رقم الهاتف:'}
-                  {language === 'he' && 'מספר טלפון:'}
-                  {language === 'en' && 'Phone Number:'}
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    customerFound && customerInfo.phone_number ? styles.foundInput : styles.input,
-                    { textAlign: 'center' }
-                  ]}
-                  value={customerInfo.phone_number}
-                  onChangeText={(text) => setCustomerInfo(prev => ({ ...prev, phone_number: text }))}
-                  placeholder="0501234567"
-                  keyboardType="phone-pad"
-                  editable={true}
-                />
-              </View>
-            )}
-
-            {/* Image 1 (if required) */}
-            {requiredFields.images && (
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { textAlign: getTextAlign() }]}>
-                  {getImage1Label()}:
-                </Text>
-                
-                {image1 ? (
-                  <View style={styles.imageContainer}>
-                    <Image source={{ uri: image1 }} style={styles.uploadedImage} />
-                    {!customerFound && (
+            {/* Images for Visa Creation Service */}
+            {selectedService?.service_number === 1 && (
+              <>
+                {/* ID Image */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { textAlign: getTextAlign() }]}>
+                    {language === 'ar' && 'صورة الهوية:'}
+                    {language === 'he' && 'תמונת תעודת זהות:'}
+                    {language === 'en' && 'ID Photo:'}
+                    <Text style={styles.requiredText}> *</Text>
+                  </Text>
+                  
+                  {idImage ? (
+                    <View style={styles.imageContainer}>
+                      <Image source={{ uri: idImage }} style={styles.uploadedImage} />
                       <View style={styles.imageActions}>
                         <TouchableOpacity 
                           style={styles.changeImageButton}
-                          onPress={() => pickImage(1)}
+                          onPress={() => pickImage('id')}
                         >
-                          <Text style={styles.changeImageButtonText}>
-                            {language === 'ar' && 'تغيير'}
-                            {language === 'he' && 'שנה'}
-                            {language === 'en' && 'Change'}
-                          </Text>
+                          <Text style={styles.changeImageButtonText}>تغيير</Text>
                         </TouchableOpacity>
                         <TouchableOpacity 
                           style={styles.removeImageButton}
-                          onPress={() => removeImage(1)}
+                          onPress={() => removeImage('id')}
                         >
-                          <Text style={styles.removeImageButtonText}>
-                            {language === 'ar' && 'حذف'}
-                            {language === 'he' && 'מחק'}
-                            {language === 'en' && 'Remove'}
-                          </Text>
+                          <Text style={styles.removeImageButtonText}>حذف</Text>
                         </TouchableOpacity>
                       </View>
-                    )}
-                    {customerFound && (
-                      <Text style={[styles.imageLoadedText, { textAlign: getTextAlign() }]}>
-                        {language === 'ar' && '✅ تم تحميل الصورة من قاعدة البيانات'}
-                        {language === 'he' && '✅ התמונה נטענה ממסד הנתונים'}
-                        {language === 'en' && '✅ Image loaded from database'}
-                      </Text>
-                    )}
-                  </View>
-                ) : (
-                  <TouchableOpacity 
-                    style={styles.uploadButton}
-                    onPress={() => pickImage(1)}
-                  >
-                    <Text style={styles.uploadButtonIcon}>📷</Text>
-                    <Text style={[styles.uploadButtonText, { textAlign: getTextAlign() }]}>
-                      {language === 'ar' && `اختيار ${getImage1Label()}`}
-                      {language === 'he' && `בחר ${getImage1Label()}`}
-                      {language === 'en' && `Select ${getImage1Label()}`}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                
-                {/* رسالة للبيانات المفقودة */}
-                {customerFound && !image1 && (
-                  <Text style={[styles.missingDataText, { textAlign: getTextAlign() }]}>
-                    {language === 'ar' && '⚠️ الصورة غير موجودة - يمكنك إضافتها'}
-                    {language === 'he' && '⚠️ התמונה חסרה - ניתן להוסיף'}
-                    {language === 'en' && '⚠️ Image missing - you can add it'}
-                  </Text>
-                )}
-              </View>
-            )}
+                    </View>
+                  ) : (
+                    <TouchableOpacity 
+                      style={styles.uploadButton}
+                      onPress={() => pickImage('id')}
+                    >
+                      <Text style={styles.uploadButtonIcon}>📷</Text>
+                      <Text style={styles.uploadButtonText}>اختيار صورة الهوية</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
 
-            {/* Image 2 (if required) */}
-            {requiredFields.images && (
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { textAlign: getTextAlign() }]}>
-                  {getImage2Label()}:
-                </Text>
-                
-                {image2 ? (
-                  <View style={styles.imageContainer}>
-                    <Image source={{ uri: image2 }} style={styles.uploadedImage} />
-                    {!customerFound && (
+                {/* License Image */}
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { textAlign: getTextAlign() }]}>
+                    {language === 'ar' && 'صورة رخصة القيادة:'}
+                    {language === 'he' && 'תמונת רישיון נהיגה:'}
+                    {language === 'en' && 'Driver License Photo:'}
+                    <Text style={styles.requiredText}> *</Text>
+                  </Text>
+                  
+                  {licenseImage ? (
+                    <View style={styles.imageContainer}>
+                      <Image source={{ uri: licenseImage }} style={styles.uploadedImage} />
                       <View style={styles.imageActions}>
                         <TouchableOpacity 
                           style={styles.changeImageButton}
-                          onPress={() => pickImage(2)}
+                          onPress={() => pickImage('license')}
                         >
-                          <Text style={styles.changeImageButtonText}>
-                            {language === 'ar' && 'تغيير'}
-                            {language === 'he' && 'שנה'}
-                            {language === 'en' && 'Change'}
-                          </Text>
+                          <Text style={styles.changeImageButtonText}>تغيير</Text>
                         </TouchableOpacity>
                         <TouchableOpacity 
                           style={styles.removeImageButton}
-                          onPress={() => removeImage(2)}
+                          onPress={() => removeImage('license')}
                         >
-                          <Text style={styles.removeImageButtonText}>
-                            {language === 'ar' && 'حذف'}
-                            {language === 'he' && 'מחק'}
-                            {language === 'en' && 'Remove'}
-                          </Text>
+                          <Text style={styles.removeImageButtonText}>حذف</Text>
                         </TouchableOpacity>
                       </View>
-                    )}
-                    {customerFound && (
-                      <Text style={[styles.imageLoadedText, { textAlign: getTextAlign() }]}>
-                        {language === 'ar' && '✅ تم تحميل الصورة من قاعدة البيانات'}
-                        {language === 'he' && '✅ התמונה נטענה ממסד הנתונים'}
-                        {language === 'en' && '✅ Image loaded from database'}
-                      </Text>
-                    )}
-                  </View>
-                ) : (
-                  <TouchableOpacity 
-                    style={styles.uploadButton}
-                    onPress={() => pickImage(2)}
-                  >
-                    <Text style={styles.uploadButtonIcon}>📄</Text>
-                    <Text style={[styles.uploadButtonText, { textAlign: getTextAlign() }]}>
-                      {language === 'ar' && `اختيار ${getImage2Label()}`}
-                      {language === 'he' && `בחר ${getImage2Label()}`}
-                      {language === 'en' && `Select ${getImage2Label()}`}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-                
-                {/* رسالة للبيانات المفقودة */}
-                {customerFound && !image2 && (
-                  <Text style={[styles.missingDataText, { textAlign: getTextAlign() }]}>
-                    {language === 'ar' && '⚠️ الصورة غير موجودة - يمكنك إضافتها'}
-                    {language === 'he' && '⚠️ התמונה חסרה - ניתן להוסיף'}
-                    {language === 'en' && '⚠️ Image missing - you can add it'}
-                  </Text>
-                )}
-              </View>
+                    </View>
+                  ) : (
+                    <TouchableOpacity 
+                      style={styles.uploadButton}
+                      onPress={() => pickImage('license')}
+                    >
+                      <Text style={styles.uploadButtonIcon}>📄</Text>
+                      <Text style={styles.uploadButtonText}>اختيار صورة الرخصة</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
             )}
 
             {/* Continue Button */}
@@ -1135,9 +572,9 @@ export default function CustomerInfoScreen() {
                   language === 'he' ? 'מעבד...' :
                   'Processing...'
                 ) : (
-                  language === 'ar' ? '✅ متابعة' :
-                  language === 'he' ? '✅ המשך' :
-                  '✅ Continue'
+                  language === 'ar' ? '➡️ متابعة' :
+                  language === 'he' ? '➡️ המשך' :
+                  '➡️ Continue'
                 )}
               </Text>
             </TouchableOpacity>
@@ -1146,43 +583,26 @@ export default function CustomerInfoScreen() {
           {/* Information Section */}
           <View style={styles.infoContainer}>
             <Text style={[styles.infoTitle, { textAlign: getTextAlign() }]}>
-              {language === 'ar' && 'ℹ️ معلومات مطلوبة:'}
-              {language === 'he' && 'ℹ️ מידע נדרש:'}
-              {language === 'en' && 'ℹ️ Required Information:'}
+              {language === 'ar' && 'ℹ️ معلومات:'}
+              {language === 'he' && 'ℹ️ מידע:'}
+              {language === 'en' && 'ℹ️ Information:'}
             </Text>
             <Text style={[styles.infoText, { textAlign: getTextAlign() }]}>
-              {language === 'ar' && '• رقم الهوية (9 أرقام) - البحث التلقائي'}
-              {language === 'he' && '• מספר זהות (9 ספרות) - חיפוש אוטומטי'}
-              {language === 'en' && '• National ID (9 digits) - Auto search'}
+              {language === 'ar' && '• يمكنك البحث عن زبون موجود بإدخال رقم الهوية والضغط على بحث'}
+              {language === 'he' && '• ניתן לחפש לקוח קיים על ידי הכנסת מספר זהות ולחיצה על חיפוש'}
+              {language === 'en' && '• You can search for existing customer by entering ID and clicking search'}
             </Text>
-            <Text style={[styles.infoText, { textAlign: getTextAlign() }]}>
-              {language === 'ar' && '• اسم الزبون الكامل'}
-              {language === 'he' && '• שם הלקוח המלא'}
-              {language === 'en' && '• Full customer name'}
-            </Text>
-            <Text style={[styles.infoText, { textAlign: getTextAlign() }]}>
-              {language === 'ar' && '• تاريخ الميلاد'}
-              {language === 'he' && '• תאריך לידה'}
-              {language === 'en' && '• Birth date'}
-            </Text>
-            {requiredFields.phone && (
-              <Text style={[styles.infoText, { textAlign: getTextAlign() }]}>
-                {language === 'ar' && '• رقم الهاتف'}
-                {language === 'he' && '• מספר טלפון'}
-                {language === 'en' && '• Phone number'}
-              </Text>
-            )}
-            {requiredFields.images && (
+            {selectedService?.service_number === 1 && (
               <>
                 <Text style={[styles.infoText, { textAlign: getTextAlign() }]}>
-                  {language === 'ar' && `• ${getImage1Label()}`}
-                  {language === 'he' && `• ${getImage1Label()}`}
-                  {language === 'en' && `• ${getImage1Label()}`}
+                  {language === 'ar' && '• رقم الهاتف وصور الهوية والرخصة مطلوبة لخدمة إنشاء الفيزا'}
+                  {language === 'he' && '• מספר טלפון ותמונות זהות ורישיון נדרשים ליצירת כרטיס'}
+                  {language === 'en' && '• Phone number and ID/license photos required for card creation'}
                 </Text>
                 <Text style={[styles.infoText, { textAlign: getTextAlign() }]}>
-                  {language === 'ar' && `• ${getImage2Label()}`}
-                  {language === 'he' && `• ${getImage2Label()}`}
-                  {language === 'en' && `• ${getImage2Label()}`}
+                  {language === 'ar' && '• رسوم إنشاء الفيزا: 45 شيقل'}
+                  {language === 'he' && '• עמלת יצירת כרטיס: 45 שקל'}
+                  {language === 'en' && '• Card creation fee: 45 Shekel'}
                 </Text>
               </>
             )}
@@ -1196,7 +616,7 @@ export default function CustomerInfoScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0F9FF',
+    backgroundColor: '#FEF7FF',
   },
   scrollContainer: {
     flex: 1,
@@ -1225,14 +645,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#0369A1',
+    color: '#7C3AED',
     textAlign: 'center',
     flex: 1,
   },
   content: {
     flex: 1,
   },
-  selectedServiceContainer: {
+  serviceContainer: {
     backgroundColor: '#EFF6FF',
     padding: 15,
     borderRadius: 12,
@@ -1240,16 +660,16 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#3B82F6',
   },
-  selectedServiceLabel: {
-    fontSize: 14,
+  serviceTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
     color: '#1E40AF',
-    fontWeight: '600',
-    marginBottom: 5,
+    marginBottom: 8,
   },
-  selectedServiceName: {
+  serviceName: {
     fontSize: 18,
     color: '#1E40AF',
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   formContainer: {
     backgroundColor: '#FFFFFF',
@@ -1283,6 +703,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: '600',
   },
+  requiredText: {
+    color: '#DC2626',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   input: {
     borderWidth: 2,
     borderColor: '#D1D5DB',
@@ -1292,39 +717,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     color: '#1F2937',
   },
-  searchingInput: {
-    borderColor: '#F59E0B',
-    backgroundColor: '#FEF3C7',
+  searchContainer: {
+    flexDirection: 'row',
+    gap: 10,
   },
-  foundInput: {
-    borderColor: '#059669',
-    backgroundColor: '#ECFDF5',
+  searchInput: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    padding: 15,
+    fontSize: 16,
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    color: '#1F2937',
   },
-  searchingText: {
-    fontSize: 12,
-    color: '#92400E',
-    marginTop: 5,
-    fontStyle: 'italic',
+  searchButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  foundText: {
-    fontSize: 12,
-    color: '#065F46',
-    marginTop: 5,
-    fontWeight: '600',
-  },
-  imageLoadedText: {
-    fontSize: 12,
-    color: '#065F46',
-    marginTop: 8,
-    fontWeight: '600',
+  searchButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   continueButton: {
-    backgroundColor: '#0369A1',
+    backgroundColor: '#7C3AED',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 10,
-    shadowColor: '#0369A1',
+    shadowColor: '#7C3AED',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -1417,11 +843,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: 'bold',
-  },
-  missingDataText: {
-    fontSize: 12,
-    color: '#DC2626',
-    marginTop: 8,
-    fontStyle: 'italic',
   },
 });
