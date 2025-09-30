@@ -119,6 +119,8 @@ export default function CustomerInfoScreen() {
         console.log('🔍 فحص الخدمة المختارة من AsyncStorage:');
         console.log('- selectedServiceNumber:', serviceNumber);
         console.log('- selectedServiceName:', serviceName);
+        console.log('- selectedServiceNameHe:', serviceNameHe);
+        console.log('- selectedServiceNameEn:', serviceNameEn);
         
         if (serviceNumber && serviceName) {
           const serviceNum = parseInt(serviceNumber);
@@ -128,11 +130,12 @@ export default function CustomerInfoScreen() {
             id: serviceNum.toString(),
             service_number: serviceNum,
             service_name: serviceName,
-            service_name_he: serviceNameHe || getServiceNameInLanguage(serviceNum, 'he'),
-            service_name_en: serviceNameEn || getServiceNameInLanguage(serviceNum, 'en')
+            service_name_he: serviceNameHe || '',
+            service_name_en: serviceNameEn || ''
           };
           setSelectedService(service);
           console.log('✅ تم تحميل الخدمة المختارة:', service.service_name);
+          console.log('📊 تفاصيل الخدمة الكاملة:', service);
         } else {
           console.log('⚠️ لم يتم العثور على خدمة محددة');
         }
@@ -252,7 +255,26 @@ export default function CustomerInfoScreen() {
              'Service Not Selected';
     }
 
-    return getServiceNameInLanguage(selectedService.service_number, language);
+    console.log(`🔤 عرض اسم الخدمة ${selectedService.service_number} باللغة ${language}`);
+    console.log('📊 بيانات الخدمة:', {
+      ar: selectedService.service_name,
+      he: selectedService.service_name_he,
+      en: selectedService.service_name_en
+    });
+    
+    switch (language) {
+      case 'he':
+        const heName = selectedService.service_name_he || selectedService.service_name;
+        console.log(`✅ عرض الاسم العبري: ${heName}`);
+        return heName;
+      case 'en':
+        const enName = selectedService.service_name_en || selectedService.service_name;
+        console.log(`✅ عرض الاسم الإنجليزي: ${enName}`);
+        return enName;
+      default:
+        console.log(`✅ عرض الاسم العربي: ${selectedService.service_name}`);
+        return selectedService.service_name;
+    }
   };
 
   const getRequiredFields = () => {
