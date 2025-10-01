@@ -1,703 +1,626 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, SafeAreaView } from 'react-native';
+import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient } from '@supabase/supabase-js';
+import { transactionService } from '@/lib/supabase';
 
-// Initialize Supabase client with fallback values
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+interface CustomerInfo {
+  customer_name: string;
+  national_id: string;
+  phone_number: string;
+  birth_date: string;
+}
 
-// Only create Supabase client if valid credentials are provided
-export const supabase = (supabaseUrl !== 'https://placeholder.supabase.co' && supabaseAnonKey !== 'placeholder-key') 
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+export default function TransferScreen() {
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
+  const [transferData, setTransferData] = useState({
+    country: '',
+    amount: '',
+    isBankTransfer: false,
+    accountNumber: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [language, setLanguage] = useState<'ar' | 'he' | 'en'>('ar');
+  const router = useRouter();
 
-// Helper function to check if Supabase is configured
-export const isSupabaseConfigured = () => {
-  return supabase !== null;
-};
+  useEffect(() => {
+    loadCustomerInfo();
+    loadLanguage();
+  }, []);
 
-// Currency service
-export const currencyService = {
-  async getAll() {
+  const loadLanguage = async () => {
     try {
-      console.log('🔄 جلب جميع العملات من قاعدة البيانات...');
-      
-      if (isSupabaseConfigured()) {
-        console.log('📊 استخدام Supabase لجلب العملات من جدول currencies');
-        const { data, error } = await supabase!
-          .from('currencies')
-          .select('*')
-          .order('code');
-        if (error) throw error;
-        console.log(`✅ تم جلب ${data?.length || 0} عملة من قاعدة البيانات Supabase`);
-        return data || [];
+      const savedLanguage = await AsyncStorage.getItem('selectedLanguage');
+      if (savedLanguage && ['ar', 'he', 'en'].includes(savedLanguage)) {
+        setLanguage(savedLanguage as 'ar' | 'he' | 'en');
       }
-      
-      console.log('📱 استخدام التخزين المحلي كبديل لقاعدة البيانات');
-      const savedCurrencies = await AsyncStorage.getItem('managedCurrencies');
-      if (savedCurrencies) {
-        const currencies = JSON.parse(savedCurrencies);
-        console.log(`✅ تم جلب ${currencies.length} عملة من التخزين المحلي`);
-        return currencies;
-      }
-      
-      console.log('🆕 إنشاء العملات الافتراضية لأول مرة');
-      const defaultCurrencies = [
-        {
-          id: '1',
-          name_ar: 'دولار أمريكي',
-          name_en: 'US Dollar',
-          name_he: 'דולר אמריקאי',
-          code: 'USD',
-          current_rate: 3.65,
-          buy_rate: 3.59,
-          sell_rate: 3.71,
-          buy_commission: 6,
-          sell_commission: 6,
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: '2',
-          name_ar: 'يورو',
-          name_en: 'Euro',
-          name_he: 'יורו',
-          code: 'EUR',
-          current_rate: 3.95,
-          buy_rate: 3.89,
-          sell_rate: 4.01,
-          buy_commission: 6,
-          sell_commission: 6,
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ];
-      
-      await AsyncStorage.setItem('managedCurrencies', JSON.stringify(defaultCurrencies));
-      console.log(`✅ تم إنشاء ${defaultCurrencies.length} عملة افتراضية`);
-      return defaultCurrencies;
     } catch (error) {
-      console.error('خطأ في جلب الأسعار:', error);
-      return [];
+      console.log('خطأ في تحميل اللغة:', error);
     }
-  },
+  };
 
-  async getByCode(code: string) {
-    const currencies = await this.getAll();
-    return currencies.find(c => c.code === code);
-  },
-
-  async create(currency: any) {
+  const loadCustomerInfo = async () => {
     try {
-      console.log('🔄 بدء إضافة عملة جديدة:', currency);
+      const customerId = await AsyncStorage.getItem('currentCustomerId');
+      const customerName = await AsyncStorage.getItem('currentCustomerName');
+      const customerPhone = await AsyncStorage.getItem('currentCustomerPhone');
+      const customerBirthDate = await AsyncStorage.getItem('currentCustomerBirthDate');
       
-      // إنشاء العملة الجديدة مع is_active = true
-      const newCurrency = {
-        ...currency,
-        id: Date.now().toString(),
-        buy_rate: currency.buy_rate || 3.18,
-        sell_rate: currency.sell_rate || 3.30,
-        buy_commission: currency.buy_commission || 6,
-        sell_commission: currency.sell_commission || 6,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      
-      // إضافة العملة إلى قاعدة البيانات الحقيقية
-      console.log('📊 إضافة العملة إلى جدول currencies في قاعدة البيانات');
-      console.log('📊 تحديث عمود is_active = true في جدول currencies');
-      
-      if (isSupabaseConfigured()) {
-        const { data, error } = await supabase!
-          .from('currencies')
-          .insert({
-            code: newCurrency.code,
-            name_ar: newCurrency.name_ar,
-            name_en: newCurrency.name_en,
-            buy_commission: newCurrency.buy_commission,
-            sell_commission: newCurrency.sell_commission,
-            is_active: true
-          });
-        if (error) throw error;
+      if (customerId && customerName) {
+        console.log('🔍 تحميل بيانات الزبون من التخزين المحلي:', customerId);
+        
+        const customer = {
+          customer_name: customerName,
+          national_id: customerId,
+          phone_number: customerPhone || '',
+          birth_date: customerBirthDate || ''
+        };
+        
+        setCustomerInfo(customer);
+        console.log('✅ تم تحميل بيانات الزبون:', customer.customer_name);
+      } else {
+        Alert.alert('خطأ', 'لم يتم العثور على بيانات الزبون');
+        router.back();
       }
-      
-      console.log(`✅ تم إضافة العملة ${newCurrency.code} في جدول currencies مع is_active = true`);
-      
-      // تحديث التخزين المحلي
-      const savedCurrencies = await AsyncStorage.getItem('managedCurrencies');
-      const currencies = savedCurrencies ? JSON.parse(savedCurrencies) : [];
-      
-      currencies.push(newCurrency);
-      await AsyncStorage.setItem('managedCurrencies', JSON.stringify(currencies));
-      
-      console.log(`✅ تم تحديث التخزين المحلي بنجاح`);
-      
-      return newCurrency;
     } catch (error) {
-      console.error('خطأ في إضافة العملة:', error);
-      throw error;
+      console.error('خطأ في تحميل بيانات الزبون:', error);
+      Alert.alert('خطأ', 'حدث خطأ في تحميل بيانات الزبون');
+      router.back();
     }
-  },
+  };
 
-  async update(id: string, currency: any) {
-    try {
-      console.log(`🔄 تحديث العملة ${id} في جدول currencies`);
-      console.log('📊 البيانات المرسلة:', currency);
-      
-      if (isSupabaseConfigured()) {
-        const { data, error } = await supabase!
-          .from('currencies')
-          .update(currency)
-          .eq('id', id);
-        if (error) throw error;
-      }
-      
-      if (currency.is_active !== undefined) {
-        console.log(`✅ تم تحديث عمود is_active إلى ${currency.is_active} في جدول currencies للعملة ${id}`);
-      }
-      if (currency.buy_commission !== undefined) {
-        console.log(`✅ تم تحديث عمود buy_commission إلى ${currency.buy_commission} في جدول currencies للعملة ${id}`);
-      }
-      if (currency.sell_commission !== undefined) {
-        console.log(`✅ تم تحديث عمود sell_commission إلى ${currency.sell_commission} في جدول currencies للعملة ${id}`);
-      }
-      if (currency.current_rate !== undefined) {
-        console.log(`✅ تم تحديث عمود current_rate إلى ${currency.current_rate} في جدول currencies للعملة ${id}`);
-      }
-      if (currency.buy_rate !== undefined) {
-        console.log(`✅ تم تحديث عمود buy_rate إلى ${currency.buy_rate} في جدول currencies للعملة ${id}`);
-      }
-      if (currency.sell_rate !== undefined) {
-        console.log(`✅ تم تحديث عمود sell_rate إلى ${currency.sell_rate} في جدول currencies للعملة ${id}`);
-      }
-      
-      // تحديث التخزين المحلي
-      const savedCurrencies = await AsyncStorage.getItem('managedCurrencies');
-      const currencies = savedCurrencies ? JSON.parse(savedCurrencies) : [];
-      
-      const updatedCurrencies = currencies.map((c: any) => 
-        c.id === id ? { ...c, ...currency, updated_at: new Date().toISOString() } : c
+  const handleSubmit = async () => {
+    // التحقق من البيانات المطلوبة
+    if (!transferData.country.trim()) {
+      Alert.alert(
+        language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
+        language === 'ar' ? 'يرجى إدخال اسم الدولة' : 
+        language === 'he' ? 'אנא הכנס שם המדינה' : 
+        'Please enter country name'
       );
-      
-      await AsyncStorage.setItem('managedCurrencies', JSON.stringify(updatedCurrencies));
-      
-      console.log(`✅ تم تحديث التخزين المحلي بنجاح`);
-      
-      return updatedCurrencies.find((c: any) => c.id === id);
-    } catch (error) {
-      console.error('خطأ في تحديث العملة:', error);
-      throw error;
+      return;
     }
-  },
 
-  async delete(id: string) {
-    try {
-      console.log(`🔄 حذف العملة ${id} من جدول currencies في قاعدة البيانات`);
-      
-      // حذف من قاعدة البيانات الحقيقية
-      if (isSupabaseConfigured()) {
-        const { data, error } = await supabase!
-          .from('currencies')
-          .delete()
-          .eq('id', id);
-        if (error) {
-          console.error('خطأ في حذف العملة من قاعدة البيانات:', error);
-          throw error;
-        }
-      }
-      
-      console.log(`✅ تم حذف العملة ${id} من جدول currencies بنجاح`);
-      
-      // حذف من التخزين المحلي
-      const savedCurrencies = await AsyncStorage.getItem('managedCurrencies');
-      const currencies = savedCurrencies ? JSON.parse(savedCurrencies) : [];
-      
-      const filteredCurrencies = currencies.filter((c: any) => c.id !== id);
-      await AsyncStorage.setItem('managedCurrencies', JSON.stringify(filteredCurrencies));
-      
-      console.log(`✅ تم حذف العملة من التخزين المحلي أيضاً`);
-      
-      return true;
-    } catch (error) {
-      console.error('خطأ في حذف العملة:', error);
-      throw error;
+    if (!transferData.amount.trim()) {
+      Alert.alert(
+        language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
+        language === 'ar' ? 'يرجى إدخال المبلغ' : 
+        language === 'he' ? 'אנא הכנס סכום' : 
+        'Please enter amount'
+      );
+      return;
     }
-  }
-};
 
-// Company Settings service
-export const companySettingsService = {
-  async get() {
-    try {
-      if (isSupabaseConfigured()) {
-        const { data, error } = await supabase!
-          .from('company_settings')
-          .select('*')
-          .limit(1)
-          .single();
-        
-        if (error && error.code !== 'PGRST116') throw error;
-        return data;
-      }
-      return null;
-    } catch (error) {
-      console.error('خطأ في جلب إعدادات الشركة:', error);
-      return null;
+    const amount = parseFloat(transferData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert(
+        language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
+        language === 'ar' ? 'يرجى إدخال مبلغ صحيح' : 
+        language === 'he' ? 'אנא הכנס סכום תקין' : 
+        'Please enter valid amount'
+      );
+      return;
     }
-  },
 
-  async create(settings: any) {
-    try {
-      if (isSupabaseConfigured()) {
-        const { data, error } = await supabase!
-          .from('company_settings')
-          .insert(settings)
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      }
-      return settings;
-    } catch (error) {
-      console.error('خطأ في إنشاء إعدادات الشركة:', error);
-      throw error;
+    if (transferData.isBankTransfer && !transferData.accountNumber.trim()) {
+      Alert.alert(
+        language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
+        language === 'ar' ? 'يرجى إدخال رقم الحساب' : 
+        language === 'he' ? 'אנא הכנס מספר חשבון' : 
+        'Please enter account number'
+      );
+      return;
     }
-  },
 
-  async update(id: string, settings: any) {
     try {
-      if (isSupabaseConfigured()) {
-        const { data, error } = await supabase!
-          .from('company_settings')
-          .update(settings)
-          .eq('id', id)
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      }
-      return settings;
-    } catch (error) {
-      console.error('خطأ في تحديث إعدادات الشركة:', error);
-      throw error;
-    }
-  }
-};
+      setLoading(true);
+      console.log('🔄 معالجة طلب التحويل للخارج...');
 
-// Working Hours service
-export const workingHoursService = {
-  async getByCompanyId(companyId: string) {
-    try {
-      console.log('🔄 جلب أوقات العمل للشركة:', companyId);
-      
-      if (isSupabaseConfigured()) {
-        console.log('📊 استخدام Supabase لجلب أوقات العمل من جدول working_hours');
-        const { data, error } = await supabase!
-          .from('working_hours')
-          .select('*')
-          .eq('company_id', companyId)
-          .order('day_of_week');
+      // إنشاء معاملة التحويل للخارج في جدول transactions
+      try {
+        const transactionData = {
+          service_number: 2, // تحويل للخارج
+          amount_paid: amount,
+          currency_paid: 'ILS',
+          amount_received: 0,
+          currency_received: 'USD', // افتراضي
+          customer_id: customerInfo?.national_id,
+          notes: `تحويل للخارج - الدولة: ${transferData.country} - المبلغ: ${transferData.amount} شيقل - ${transferData.isBankTransfer ? `تحويل لحساب بنك - رقم الحساب: ${transferData.accountNumber}` : 'تحويل نقدي'} - الزبون: ${customerInfo?.customer_name}`
+        };
         
-        if (error) {
-          console.error('❌ خطأ في جلب أوقات العمل من قاعدة البيانات:', error);
-          throw error;
-        }
+        console.log('🔄 إنشاء معاملة التحويل للخارج في جدول transactions:', transactionData);
         
-        console.log(`✅ تم جلب ${data?.length || 0} يوم عمل من قاعدة البيانات`);
+        // إضافة المعاملة إلى قاعدة البيانات
+        await transactionService.create(transactionData);
         
-        // عرض تفاصيل أيام العمل
-        if (data && data.length > 0) {
-          const workingDays = data.filter(d => d.is_working_day === true || d.is_working_day === 'true');
-          const nonWorkingDays = data.filter(d => d.is_working_day === false || d.is_working_day === 'false');
-          console.log('📅 أيام العمل:', workingDays.map(d => d.day_of_week).join(', '));
-          console.log('🚫 أيام الراحة:', nonWorkingDays.map(d => d.day_of_week).join(', '));
-          
-          // عرض تفاصيل ساعات العمل لكل يوم
-          data.forEach(day => {
-            const isWorking = day.is_working_day === true || day.is_working_day === 'true';
-            console.log(`📊 ${day.day_of_week}: is_working_day=${day.is_working_day} (${isWorking ? 'عمل' : 'راحة'}), morning=${day.morning_start}-${day.morning_end}, evening=${day.evening_start}-${day.evening_end}`);
-          });
-        }
-        
-        return data || [];
-      }
-      
-      console.log('📱 قاعدة البيانات غير متاحة، إرجاع قائمة فارغة');
-      return [];
-    } catch (error) {
-      console.error('خطأ في جلب أوقات العمل:', error);
-      return [];
-    }
-  },
-
-  async upsert(companyId: string, workingHours: any[]) {
-    try {
-      if (isSupabaseConfigured()) {
-        const hoursWithCompanyId = workingHours.map(day => ({
-          company_id: companyId,
-          day_of_week: day.key,
-          is_working_day: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'saturday'].includes(day.key),
-          morning_start: '09:00',
-          morning_end: '14:00',
-          evening_start: '16:00',
-          evening_end: '18:00'
-        }));
-
-        const { data, error } = await supabase!
-          .from('working_hours')
-          .upsert(hoursWithCompanyId, { 
-            onConflict: 'company_id,day_of_week' 
-          })
-          .select();
-        
-        if (error) throw error;
-        return data;
-      }
-      return workingHours;
-    } catch (error) {
-      console.error('خطأ في حفظ أوقات العمل:', error);
-      throw error;
-    }
-  }
-};
-
-// Service service
-export const serviceService = {
-  async getAll() {
-    try {
-      console.log('🔄 جلب جميع الزبائن من قاعدة البيانات...');
-      
-      if (isSupabaseConfigured()) {
-        console.log('📊 استخدام Supabase لجلب الزبائن من جدول customers');
-        const { data, error } = await supabase!
-          .from('customers')
-          .select('*')
-          .order('created_at', { ascending: false });
-        if (error) throw error;
-        console.log(`✅ تم جلب ${data?.length || 0} زبون من قاعدة البيانات Supabase`);
-        return data || [];
-      }
-      
-      console.log('📱 استخدام التخزين المحلي كبديل لقاعدة البيانات');
-      const savedCustomers = await AsyncStorage.getItem('customers');
-      if (savedCustomers) {
-        const customers = JSON.parse(savedCustomers);
-        console.log(`✅ تم جلب ${customers.length} زبون من التخزين المحلي`);
-        return customers;
-      }
-      
-      console.log('📝 لا توجد بيانات زبائن محفوظة');
-      return [];
-    } catch (error) {
-      console.error('❌ خطأ في جلب بيانات الزبائن:', error);
-      return [];
-    }
-  },
-
-  async create(service: any) {
-    console.log('Create service:', service);
-    return service;
-  },
-
-  async update(id: string, service: any) {
-    console.log('Update service:', id, service);
-    return service;
-  },
-
-  async delete(id: string) {
-    console.log('Delete service:', id);
-  }
-};
-
-// Transaction service
-export const transactionService = {
-  async getAll() {
-    return [];
-  },
-
-  async create(transaction: any) {
-    console.log('Create transaction:', transaction);
-    return { ...transaction, id: Date.now().toString() };
-  },
-
-  async update(id: string, transaction: any) {
-    console.log('Update transaction:', id, transaction);
-    return transaction;
-  },
-
-  async delete(id: string) {
-    console.log('Delete transaction:', id);
-  }
-};
-
-// Customer service
-export const customerService = {
-  async getAll() {
-    try {
-      console.log('🔄 جلب جميع الزبائن من قاعدة البيانات...');
-      
-      if (isSupabaseConfigured()) {
-        console.log('📊 استخدام Supabase لجلب الزبائن من جدول customers');
-        const { data, error } = await supabase!
-          .from('customers')
-          .select('*')
-          .order('created_at', { ascending: false });
-        if (error) throw error;
-        console.log(`✅ تم جلب ${data?.length || 0} زبون من قاعدة البيانات Supabase`);
-        return data || [];
-      }
-      
-      console.log('📱 استخدام التخزين المحلي كبديل لقاعدة البيانات');
-      const savedCustomers = await AsyncStorage.getItem('customers');
-      if (savedCustomers) {
-        const customers = JSON.parse(savedCustomers);
-        console.log(`✅ تم جلب ${customers.length} زبون من التخزين المحلي`);
-        return customers;
-      }
-      
-      console.log('📝 لا توجد بيانات زبائن محفوظة');
-      return [];
-    } catch (error) {
-      console.error('❌ خطأ في جلب بيانات الزبائن:', error);
-      return [];
-    }
-  },
-
-  async getByNationalId(nationalId: string) {
-    try {
-      console.log(`🔍 البحث عن زبون برقم الهوية: ${nationalId}`);
-      
-      if (isSupabaseConfigured()) {
-        console.log('📊 البحث في جدول customers في قاعدة البيانات');
-        const { data, error } = await supabase!
-          .from('customers')
-          .select('*')
-          .eq('national_id', nationalId)
-          .single();
-        
-        if (error && error.code !== 'PGRST116') {
-          console.error('❌ خطأ في البحث عن الزبون:', error);
-          throw error;
-        }
-        
-        if (data) {
-          console.log(`✅ تم العثور على الزبون: ${data.customer_name}`);
-          return data;
-        } else {
-          console.log('📝 لم يتم العثور على الزبون في قاعدة البيانات');
-          return null;
-        }
-      }
-      
-      console.log('📱 البحث في التخزين المحلي');
-      const savedCustomers = await AsyncStorage.getItem('customers');
-      if (savedCustomers) {
-        const customers = JSON.parse(savedCustomers);
-        const customer = customers.find((c: any) => c.national_id === nationalId);
-        if (customer) {
-          console.log(`✅ تم العثور على الزبون في التخزين المحلي: ${customer.customer_name}`);
-          return customer;
-        }
-      }
-      
-      console.log('📝 لم يتم العثور على الزبون');
-      return null;
-    } catch (error) {
-      console.error('❌ خطأ في البحث عن الزبون:', error);
-      return null;
-    }
-  },
-
-  async getByPhoneNumber(phoneNumber: string) {
-    try {
-      console.log(`🔍 البحث عن زبون برقم الهاتف: ${phoneNumber}`);
-      
-      if (isSupabaseConfigured()) {
-        console.log('📊 البحث في جدول customers في قاعدة البيانات');
-        const { data, error } = await supabase!
-          .from('customers')
-          .select('*')
-          .eq('phone_number', phoneNumber)
-          .single();
-        
-        if (error && error.code !== 'PGRST116') {
-          console.error('❌ خطأ في البحث عن الزبون:', error);
-          throw error;
-        }
-        
-        if (data) {
-          console.log(`✅ تم العثور على الزبون: ${data.customer_name}`);
-          return data;
-        } else {
-          console.log('📝 لم يتم العثور على الزبون في قاعدة البيانات');
-          return null;
-        }
-      }
-      
-      console.log('📱 البحث في التخزين المحلي');
-      const savedCustomers = await AsyncStorage.getItem('customers');
-      if (savedCustomers) {
-        const customers = JSON.parse(savedCustomers);
-        const customer = customers.find((c: any) => c.phone_number === phoneNumber);
-        if (customer) {
-          console.log(`✅ تم العثور على الزبون في التخزين المحلي: ${customer.customer_name}`);
-          return customer;
-        }
-      }
-      
-      console.log('📝 لم يتم العثور على الزبون');
-      return null;
-    } catch (error) {
-      console.error('❌ خطأ في البحث عن الزبون:', error);
-      return null;
-    }
-  },
-
-  async create(customer: any) {
-    try {
-      console.log('🔄 إنشاء زبون جديد:', customer);
-      
-      if (isSupabaseConfigured()) {
-        console.log('📊 إضافة الزبون إلى جدول customers في قاعدة البيانات');
-        const { data, error } = await supabase!
-          .from('customers')
-          .insert({
-            customer_name: customer.customer_name,
-            national_id: customer.national_id,
-            phone_number: customer.phone_number,
-            birth_date: customer.birth_date
-          })
-          .select()
-          .single();
-        
-        if (error) {
-          console.error('❌ خطأ في إضافة الزبون إلى قاعدة البيانات:', error);
-          throw error;
-        }
-        
-        console.log(`✅ تم إضافة الزبون بنجاح في قاعدة البيانات: ${data.customer_name} (ID: ${data.id})`);
-        
-        // حفظ نسخة في التخزين المحلي للتوافق
-        const savedCustomers = await AsyncStorage.getItem('customers');
-        const customers = savedCustomers ? JSON.parse(savedCustomers) : [];
-        customers.push(data);
-        await AsyncStorage.setItem('customers', JSON.stringify(customers));
-        
-        return data;
-      }
-      
-      console.log('📱 حفظ الزبون في التخزين المحلي فقط');
-      const newCustomer = { ...customer, id: Date.now().toString() };
-      const savedCustomers = await AsyncStorage.getItem('customers');
-      const customers = savedCustomers ? JSON.parse(savedCustomers) : [];
-      customers.push(newCustomer);
-      await AsyncStorage.setItem('customers', JSON.stringify(customers));
-      console.log(`✅ تم حفظ الزبون في التخزين المحلي: ${newCustomer.customer_name}`);
-      
-      return newCustomer;
-    } catch (error) {
-      console.error('❌ خطأ في إنشاء الزبون:', error);
-      throw error;
-    }
-  },
-
-  async update(id: string, customer: any) {
-    try {
-      console.log(`🔄 تحديث بيانات الزبون: ${customer.customer_name} (ID: ${id})`);
-      
-      if (isSupabaseConfigured()) {
-        console.log('📊 تحديث الزبون في جدول customers في قاعدة البيانات');
-        
-        // البحث بـ national_id بدلاً من id إذا كان id هو رقم الهوية
-        let query = supabase!.from('customers').update({
-          customer_name: customer.customer_name,
-          phone_number: customer.phone_number,
-          birth_date: customer.birth_date
-        });
-        
-        // إذا كان id يبدو كرقم هوية (9 أرقام)، ابحث بـ national_id
-        if (id.length === 9 && /^\d+$/.test(id)) {
-          query = query.eq('national_id', id);
-        } else {
-          query = query.eq('id', id);
-        }
-        
-        const { data, error } = await query.select().single();
-        
-        if (error) {
-          console.error('❌ خطأ في تحديث الزبون في قاعدة البيانات:', error);
-          throw error;
-        }
-        
-        console.log(`✅ تم تحديث الزبون بنجاح في قاعدة البيانات: ${data.customer_name}`);
-        
-        // تحديث التخزين المحلي أيضاً
-        const savedCustomers = await AsyncStorage.getItem('customers');
-        if (savedCustomers) {
-          const customers = JSON.parse(savedCustomers);
-          const updatedCustomers = customers.map((c: any) => 
-            c.national_id === customer.national_id ? { ...c, ...customer } : c
-          );
-          await AsyncStorage.setItem('customers', JSON.stringify(updatedCustomers));
-        }
-        
-        return data;
-      }
-      
-      console.log('📱 تحديث الزبون في التخزين المحلي فقط');
-      const savedCustomers = await AsyncStorage.getItem('customers');
-      if (savedCustomers) {
-        const customers = JSON.parse(savedCustomers);
-        const updatedCustomers = customers.map((c: any) => 
-          c.national_id === customer.national_id ? { ...c, ...customer } : c
+        console.log('✅ تم حفظ معاملة التحويل للخارج في جدول transactions بنجاح');
+      } catch (transactionError) {
+        console.error('❌ خطأ في حفظ المعاملة في قاعدة البيانات:', transactionError);
+        Alert.alert(
+          language === 'ar' ? 'تحذير' : language === 'he' ? 'אזהרה' : 'Warning',
+          language === 'ar' ? 'حدث خطأ في تسجيل المعاملة' : 
+          language === 'he' ? 'אירעה שגיאה ברישום העסקה' : 
+          'Error occurred recording transaction'
         );
-        await AsyncStorage.setItem('customers', JSON.stringify(updatedCustomers));
-        console.log(`✅ تم تحديث الزبون في التخزين المحلي: ${customer.customer_name}`);
+        return;
       }
-      
-      return customer;
-    } catch (error) {
-      console.error('❌ خطأ في تحديث الزبون:', error);
-      throw error;
-    }
-  },
 
-  async delete(id: string) {
-    try {
-      console.log(`🔄 حذف الزبون: ${id}`);
-      
-      if (isSupabaseConfigured()) {
-        console.log('📊 حذف الزبون من جدول customers في قاعدة البيانات');
-        const { error } = await supabase!
-          .from('customers')
-          .delete()
-          .eq('id', id);
+      // تنظيف البيانات المؤقتة
+      await AsyncStorage.removeItem('currentCustomerId');
+      await AsyncStorage.removeItem('currentCustomerName');
+      await AsyncStorage.removeItem('currentCustomerPhone');
+      await AsyncStorage.removeItem('currentCustomerBirthDate');
+      await AsyncStorage.removeItem('selectedServiceNumber');
+      await AsyncStorage.removeItem('selectedServiceName');
+      await AsyncStorage.removeItem('selectedServiceNameHe');
+      await AsyncStorage.removeItem('selectedServiceNameEn');
+
+      // عرض رسالة النجاح
+      Alert.alert(
+        language === 'ar' ? '✅ تم تسجيل طلب التحويل بنجاح' : 
+        language === 'he' ? '✅ בקשת ההעברה נרשמה בהצלחה' : 
+        '✅ Transfer Request Recorded Successfully',
         
-        if (error) {
-          console.error('❌ خطأ في حذف الزبون من قاعدة البيانات:', error);
-          throw error;
-        }
+        language === 'ar' ? 
+          `🙏 شكراً لاختيارك محلنا\n\n` +
+          `📋 يرجى التقدم إلى الشباك وانتظار دورك\n\n` +
+          `تفاصيل التحويل:\n` +
+          `الزبون: ${customerInfo?.customer_name}\n` +
+          `الخدمة: تحويل للخارج\n` +
+          `الدولة: ${transferData.country}\n` +
+          `المبلغ: ${transferData.amount} شيقل\n` +
+          `نوع التحويل: ${transferData.isBankTransfer ? 'تحويل لحساب بنك' : 'تحويل نقدي'}\n` +
+          `${transferData.isBankTransfer ? `رقم الحساب: ${transferData.accountNumber}\n` : ''}` +
+          `✅ تم تسجيل الطلب في النظام بنجاح` :
         
-        console.log(`✅ تم حذف الزبون من قاعدة البيانات بنجاح`);
-      }
-      
-      console.log('📱 حذف الزبون من التخزين المحلي');
-      const savedCustomers = await AsyncStorage.getItem('customers');
-      if (savedCustomers) {
-        const customers = JSON.parse(savedCustomers);
-        const filteredCustomers = customers.filter((c: any) => c.id !== id);
-        await AsyncStorage.setItem('customers', JSON.stringify(filteredCustomers));
-        console.log(`✅ تم حذف الزبون من التخزين المحلي`);
-      }
-      
-      return true;
+        language === 'he' ? 
+          `🙏 תודה שבחרת בחנות שלנו\n\n` +
+          `📋 אנא פנה לדלפק והמתן לתורך\n\n` +
+          `פרטי ההעברה:\n` +
+          `לקוח: ${customerInfo?.customer_name}\n` +
+          `שירות: העברה לחו"ל\n` +
+          `מדינה: ${transferData.country}\n` +
+          `סכום: ${transferData.amount} שקל\n` +
+          `סוג העברה: ${transferData.isBankTransfer ? 'העברה לחשבון בנק' : 'העברה במזומן'}\n` +
+          `${transferData.isBankTransfer ? `מספר חשבון: ${transferData.accountNumber}\n` : ''}` +
+          `✅ הבקשה נרשמה במערכת בהצלחה` :
+        
+          `🙏 Thank you for choosing our store\n\n` +
+          `📋 Please proceed to the counter and wait for your turn\n\n` +
+          `Transfer Details:\n` +
+          `Customer: ${customerInfo?.customer_name}\n` +
+          `Service: International Transfer\n` +
+          `Country: ${transferData.country}\n` +
+          `Amount: ${transferData.amount} Shekel\n` +
+          `Transfer Type: ${transferData.isBankTransfer ? 'Bank Account Transfer' : 'Cash Transfer'}\n` +
+          `${transferData.isBankTransfer ? `Account Number: ${transferData.accountNumber}\n` : ''}` +
+          `✅ Request recorded in system successfully`,
+        
+        [
+          {
+            text: language === 'ar' ? '🏠 العودة لأسعار اليوم' : 
+                  language === 'he' ? '🏠 חזרה למחירי היום' : 
+                  '🏠 Back to Today\'s Prices',
+            onPress: () => router.replace('/(tabs)/prices')
+          }
+        ]
+      );
+
     } catch (error) {
-      console.error('❌ خطأ في حذف الزبون:', error);
-      throw error;
+      console.error('خطأ في إرسال طلب التحويل:', error);
+      Alert.alert(
+        language === 'ar' ? 'خطأ' : language === 'he' ? 'שגיאה' : 'Error',
+        language === 'ar' ? 'حدث خطأ في إرسال الطلب' : 
+        language === 'he' ? 'אירעה שגיאה בשליחת הבקשה' : 
+        'Error occurred while submitting request'
+      );
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleBack = () => {
+    router.back();
+  };
+
+  const getTextAlign = () => {
+    return language === 'en' ? 'left' : 'right';
+  };
+
+  if (!customerInfo) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={[styles.container, styles.centerContent]}>
+          <Text style={styles.loadingText}>
+            {language === 'ar' && 'جاري تحميل بيانات الزبون...'}
+            {language === 'he' && 'טוען נתוני לקוח...'}
+            {language === 'en' && 'Loading customer data...'}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
   }
-};
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView 
+        style={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+            <Text style={styles.backButtonText}>
+              {language === 'ar' && '← العودة'}
+              {language === 'he' && '← חזרה'}
+              {language === 'en' && '← Back'}
+            </Text>
+          </TouchableOpacity>
+          
+          <Text style={styles.title}>
+            {language === 'ar' && '🌍 تحويل للخارج'}
+            {language === 'he' && '🌍 העברה לחו"ל'}
+            {language === 'en' && '🌍 International Transfer'}
+          </Text>
+          
+          <View style={{ width: 80 }} />
+        </View>
+
+        <View style={styles.content}>
+          {/* Customer Info Display */}
+          <View style={styles.customerInfoContainer}>
+            <Text style={[styles.customerInfoTitle, { textAlign: getTextAlign() }]}>
+              {language === 'ar' && 'بيانات الزبون:'}
+              {language === 'he' && 'פרטי הלקוח:'}
+              {language === 'en' && 'Customer Information:'}
+            </Text>
+            <Text style={[styles.customerInfoText, { textAlign: getTextAlign() }]}>
+              {language === 'ar' && `الاسم: ${customerInfo.customer_name}`}
+              {language === 'he' && `שם: ${customerInfo.customer_name}`}
+              {language === 'en' && `Name: ${customerInfo.customer_name}`}
+            </Text>
+            <Text style={[styles.customerInfoText, { textAlign: getTextAlign() }]}>
+              {language === 'ar' && `رقم الهوية: ${customerInfo.national_id}`}
+              {language === 'he' && `מספר זהות: ${customerInfo.national_id}`}
+              {language === 'en' && `National ID: ${customerInfo.national_id}`}
+            </Text>
+          </View>
+
+          {/* Transfer Form */}
+          <View style={styles.formContainer}>
+            <Text style={[styles.sectionTitle, { textAlign: getTextAlign() }]}>
+              {language === 'ar' && 'تفاصيل التحويل:'}
+              {language === 'he' && 'פרטי ההעברה:'}
+              {language === 'en' && 'Transfer Details:'}
+            </Text>
+
+            {/* Country */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { textAlign: getTextAlign() }]}>
+                {language === 'ar' && 'اسم الدولة:'}
+                {language === 'he' && 'שם המדינה:'}
+                {language === 'en' && 'Country Name:'}
+              </Text>
+              <TextInput
+                style={[styles.input, { textAlign: getTextAlign() }]}
+                value={transferData.country}
+                onChangeText={(text) => setTransferData(prev => ({ ...prev, country: text }))}
+                placeholder={
+                  language === 'ar' ? 'مثال: الأردن' :
+                  language === 'he' ? 'דוגמה: ירדן' :
+                  'Example: Jordan'
+                }
+              />
+            </View>
+
+            {/* Amount */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { textAlign: getTextAlign() }]}>
+                {language === 'ar' && 'المبلغ (بالشيقل):'}
+                {language === 'he' && 'סכום (בשקל):'}
+                {language === 'en' && 'Amount (in Shekel):'}
+              </Text>
+              <TextInput
+                style={[styles.input, { textAlign: 'center' }]}
+                value={transferData.amount}
+                onChangeText={(text) => setTransferData(prev => ({ ...prev, amount: text }))}
+                placeholder="1000.00"
+                keyboardType="decimal-pad"
+              />
+            </View>
+
+            {/* Bank Transfer Question */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { textAlign: getTextAlign() }]}>
+                {language === 'ar' && 'هل التحويل لحساب بنك؟'}
+                {language === 'he' && 'האם ההעברה לחשבון בנק?'}
+                {language === 'en' && 'Is this a bank account transfer?'}
+              </Text>
+              <View style={styles.bankTransferContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.bankTransferButton,
+                    transferData.isBankTransfer && styles.selectedBankTransfer
+                  ]}
+                  onPress={() => setTransferData(prev => ({ ...prev, isBankTransfer: true, accountNumber: prev.accountNumber }))}
+                >
+                  <Text style={[
+                    styles.bankTransferText,
+                    transferData.isBankTransfer && styles.selectedBankTransferText
+                  ]}>
+                    {language === 'ar' && '✅ نعم - لحساب بنك'}
+                    {language === 'he' && '✅ כן - לחשבון בנק'}
+                    {language === 'en' && '✅ Yes - Bank Account'}
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.bankTransferButton,
+                    !transferData.isBankTransfer && styles.selectedBankTransfer
+                  ]}
+                  onPress={() => setTransferData(prev => ({ ...prev, isBankTransfer: false, accountNumber: '' }))}
+                >
+                  <Text style={[
+                    styles.bankTransferText,
+                    !transferData.isBankTransfer && styles.selectedBankTransferText
+                  ]}>
+                    {language === 'ar' && '💰 لا - تحويل نقدي'}
+                    {language === 'he' && '💰 לא - העברה במזומן'}
+                    {language === 'en' && '💰 No - Cash Transfer'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Account Number (if bank transfer) */}
+            {transferData.isBankTransfer && (
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { textAlign: getTextAlign() }]}>
+                  {language === 'ar' && 'رقم الحساب:'}
+                  {language === 'he' && 'מספר חשבון:'}
+                  {language === 'en' && 'Account Number:'}
+                </Text>
+                <TextInput
+                  style={[styles.input, { textAlign: 'center' }]}
+                  value={transferData.accountNumber}
+                  onChangeText={(text) => setTransferData(prev => ({ ...prev, accountNumber: text }))}
+                  placeholder="123456789"
+                  keyboardType="numeric"
+                />
+              </View>
+            )}
+
+            {/* Submit Button */}
+            <TouchableOpacity 
+              style={[styles.submitButton, loading && styles.disabledButton]} 
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              <Text style={styles.submitButtonText}>
+                {loading ? (
+                  language === 'ar' ? 'جاري إرسال الطلب...' :
+                  language === 'he' ? 'שולח בקשה...' :
+                  'Submitting Request...'
+                ) : (
+                  language === 'ar' ? '📤 إرسال طلب التحويل' :
+                  language === 'he' ? '📤 שלח בקשת העברה' :
+                  '📤 Submit Transfer Request'
+                )}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Information Section */}
+          <View style={styles.infoContainer}>
+            <Text style={[styles.infoTitle, { textAlign: getTextAlign() }]}>
+              {language === 'ar' && 'ℹ️ معلومات مهمة:'}
+              {language === 'he' && 'ℹ️ מידע חשוב:'}
+              {language === 'en' && 'ℹ️ Important Information:'}
+            </Text>
+            <Text style={[styles.infoText, { textAlign: getTextAlign() }]}>
+              {language === 'ar' && '• التحويل متاح لجميع دول العالم'}
+              {language === 'he' && '• ההעברה זמינה לכל מדינות העולם'}
+              {language === 'en' && '• Transfer available to all countries worldwide'}
+            </Text>
+            <Text style={[styles.infoText, { textAlign: getTextAlign() }]}>
+              {language === 'ar' && '• يمكن التحويل نقدياً أو لحساب بنك'}
+              {language === 'he' && '• ניתן להעביר במזומן או לחשבון בנק'}
+              {language === 'en' && '• Transfer can be cash pickup or bank account'}
+            </Text>
+            <Text style={[styles.infoText, { textAlign: getTextAlign() }]}>
+              {language === 'ar' && '• سيتم مراجعة طلبك من قبل الموظفين'}
+              {language === 'he' && '• הבקשה שלך תיבדק על ידי הצוות'}
+              {language === 'en' && '• Your request will be reviewed by staff'}
+            </Text>
+            <Text style={[styles.infoText, { textAlign: getTextAlign() }]}>
+              {language === 'ar' && '• قد تستغرق العملية 15-30 دقيقة'}
+              {language === 'he' && '• התהליך עשוי לקחת 15-30 דקות'}
+              {language === 'en' && '• Process may take 15-30 minutes'}
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F0F9FF',
+  },
+  scrollContainer: {
+    flex: 1,
+    padding: 20,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 30,
+    marginTop: 20,
+  },
+  backButton: {
+    backgroundColor: '#6B7280',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 6,
+    width: 80,
+  },
+  backButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#0369A1',
+    textAlign: 'center',
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+  },
+  customerInfoContainer: {
+    backgroundColor: '#EFF6FF',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3B82F6',
+  },
+  customerInfoTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1E40AF',
+    marginBottom: 8,
+  },
+  customerInfoText: {
+    fontSize: 14,
+    color: '#1E40AF',
+    marginBottom: 4,
+  },
+  formContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 25,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 20,
+    backgroundColor: '#F3F4F6',
+    padding: 12,
+    borderRadius: 8,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    color: '#374151',
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  input: {
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    padding: 15,
+    fontSize: 16,
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    color: '#1F2937',
+  },
+  bankTransferContainer: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  bankTransferButton: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+  },
+  selectedBankTransfer: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#3B82F6',
+  },
+  bankTransferText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  selectedBankTransferText: {
+    color: '#1E40AF',
+  },
+  submitButton: {
+    backgroundColor: '#0369A1',
+    padding: 18,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+    shadowColor: '#0369A1',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  disabledButton: {
+    backgroundColor: '#9CA3AF',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  infoContainer: {
+    backgroundColor: '#FEF3C7',
+    padding: 20,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#92400E',
+    marginBottom: 10,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#92400E',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+});
